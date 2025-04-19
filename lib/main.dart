@@ -1,5 +1,6 @@
 
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get_navigation/src/root/get_material_app.dart';
@@ -77,20 +78,27 @@ class _StarterState extends State<Starter> {
 
   }
 
+
+  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
-    return GetMaterialApp(
-      debugShowCheckedModeBanner: false,
-      routes: {
-        LoginPage.id: (context) => const LoginPage(),
-        RegisterPage.id: (context) => const RegisterPage(),
-        AirportPage.id: (context) => AirportPage(),
-        HomePage.id: (context) => const HomePage(),
-        FormPage.id: (context) => FormPage(tripid: ''),
-        HotelPage.id: (context) => const HotelPage(),
-        MashaaerPage.id: (context) => const MashaaerPage(),
-      },
-      initialRoute: HomePage.id,
-    );
+  return GetMaterialApp(
+  debugShowCheckedModeBanner: false,
+  routes: {
+  LoginPage.id: (context) => const LoginPage(),
+  RegisterPage.id: (context) => const RegisterPage(),
+  AirportPage.id: (context) => AirportPage(),
+  HomePage.id: (context) => const HomePage(),
+  FormPage.id: (context) => FormPage(tripid: '',),
+  HotelPage.id: (context) => const HotelPage(),
+  MashaaerPage.id: (context) => const MashaaerPage(),
+  },
+  initialRoute: getInitialRoute(),
+  );
   }
-}
+
+  String getInitialRoute() {
+  final User? user = FirebaseAuth.instance.currentUser;
+  return user == null ? LoginPage.id : HomePage.id;
+  }
+  }

@@ -15,10 +15,10 @@ import 'package:syrian_hajj_project/pages/widgets/custom_text_field.dart';
 import '../core/size_config.dart';
 
 // ignore: must_be_immutable
-class FormPage extends StatefulWidget {
+class DeanaFormPage extends StatefulWidget {
   final String tripid;
   final String? travelId;
-   final String? groupControllerText;
+  final String? groupControllerText;
   final String? hotelControllerText;
   final String? passengerControllerText;
   final String? gpsControllerText;
@@ -26,7 +26,7 @@ class FormPage extends StatefulWidget {
   final String? busNumberText;
   final String? notesControllerText;
 
-  FormPage({
+  DeanaFormPage({
     Key? key,
     required this.tripid,
     this.title,
@@ -70,29 +70,36 @@ class FormPage extends StatefulWidget {
   final String? buttonText;
 
   @override
-  State<FormPage> createState() => _FormPageState();
+  State<DeanaFormPage> createState() => _DeanaFormPageState();
 }
 
-class _FormPageState extends State<FormPage> {
+class _DeanaFormPageState extends State<DeanaFormPage> {
   List<TextEditingController> _controllers = [];
 
-  void updateForm() {
+  Future<void> updateForm() async {
+    String userId = await FirebaseAuth.instance.currentUser?.uid ?? '';
+
     final group = widget.groupController.text;
     final hotel = widget.hotelController.text;
     final passenger = widget.passengerController.text;
+    final groupName = widget.groupName.text;
+    final busNumber = widget.busNumber.text;
     final gps = widget.gpsController.text;
     final notes = widget.notesController.text;
-
     var collection =
-        FirebaseFirestore.instance.collection(kMessagesCollections);
+    FirebaseFirestore.instance.collection(kMessagesCollections);
     collection.doc(widget.tripid).update({
+      "userId": userId,
       "group": group,
       "hotel": hotel,
       "passenger": passenger,
       "gps": gps,
+      "groupName": groupName,
+      "busNumber": busNumber,
       "notes": notes,
+      // "time": Timestamp.now(),
       "travelId" : widget.travelId,
-      "type": "bus",
+      "type": "deana",
       // "time": Timestamp.now(),
     });
     //  collection.doc('hotel').update({'hotel':hotel});
@@ -123,12 +130,12 @@ class _FormPageState extends State<FormPage> {
       "notes": notes,
       "time": Timestamp.now(),
       "travelId" : widget.travelId,
-      "type": "bus",
+      "type": "deana",
     });
   }
 
   CollectionReference formInfo =
-      FirebaseFirestore.instance.collection(kMessagesCollections);
+  FirebaseFirestore.instance.collection(kMessagesCollections);
 
   final _formKey = GlobalKey<FormState>();
 
@@ -189,11 +196,11 @@ class _FormPageState extends State<FormPage> {
                 Expanded(
                   child: CustomTextField(
                     validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'الرجاء ادخال بيانات';
-                  }
-                  return null;
-                            },
+                      if (value == null || value.isEmpty) {
+                        return 'الرجاء ادخال بيانات';
+                      }
+                      return null;
+                    },
                     controller: widget.groupController,
                     onSaved: (data) {
                       formInfo.add({'group': data});
@@ -209,81 +216,81 @@ class _FormPageState extends State<FormPage> {
             ),
 
             const VerticalSpace(2),
-            Row(
-              children: [
-                SizedBox(
-                  width: SizeConfig.defaultSize! * 21,
-                  child: Padding(
-                    padding: const EdgeInsets.only(left: 5),
-                    child: CustomSmallTextField(
-                      controller: widget.groupName,
-                      onSaved: (data) {
-                        formInfo.add({'groupName': data});
-                      },
-                      lableText: 'اسم المجموعة',
-                      maxLines: 1,
-
-                    ),
-                  ),
-                ),
-                const Spacer(
-                  flex: 1,
-                ),
-                SizedBox(
-                  width: SizeConfig.defaultSize! * 20,
-                  child: Padding(
-                    padding: const EdgeInsets.only(right: 5),
-                    child: CustomSmallTextField(
-                      controller: widget.busNumber,
-                      onSaved: (data) {
-                        formInfo.add({'busNumber': data});
-                      },
-                      lableText: 'رقم الباص',
-                      // inputType: TextInputType.number,
-                      maxLines: 1,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const VerticalSpace(2),
-            Row(
-              children: [
-                SizedBox(
-                  width: SizeConfig.defaultSize! * 21,
-                  child: Padding(
-                    padding: const EdgeInsets.only(left: 5),
-                    child: CustomSmallTextField(
-                      controller: widget.gpsController,
-                      onSaved: (data) {
-                        formInfo.add({'gps': data});
-                      },
-                      lableText: 'الفندق',
-                      maxLines: 1,
-                    ),
-                  ),
-                ),
-                const Spacer(
-                  flex: 1,
-                ),
-                SizedBox(
-                  width: SizeConfig.defaultSize! * 20,
-                  child: Padding(
-                    padding: const EdgeInsets.only(right: 5),
-                    child: CustomSmallTextField(
-                      controller: widget.passengerController,
-                      onSaved: (data) {
-                        formInfo.add({'passenger': data});
-                      },
-                      lableText: 'عدد الحجاج',
-                      inputType: TextInputType.number,
-                      maxLines: 1,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const VerticalSpace(2),
+            // Row(
+            //   children: [
+            //     SizedBox(
+            //       width: SizeConfig.defaultSize! * 21,
+            //       child: Padding(
+            //         padding: const EdgeInsets.only(left: 5),
+            //         child: CustomSmallTextField(
+            //           controller: widget.groupName,
+            //           onSaved: (data) {
+            //             formInfo.add({'groupName': data});
+            //           },
+            //           lableText: 'اسم المجموعة',
+            //           maxLines: 1,
+            //
+            //         ),
+            //       ),
+            //     ),
+            //     const Spacer(
+            //       flex: 1,
+            //     ),
+            //     SizedBox(
+            //       width: SizeConfig.defaultSize! * 20,
+            //       child: Padding(
+            //         padding: const EdgeInsets.only(right: 5),
+            //         child: CustomSmallTextField(
+            //           controller: widget.busNumber,
+            //           onSaved: (data) {
+            //             formInfo.add({'busNumber': data});
+            //           },
+            //           lableText: 'رقم الباص',
+            //           // inputType: TextInputType.number,
+            //           maxLines: 1,
+            //         ),
+            //       ),
+            //     ),
+            //   ],
+            // ),
+            // const VerticalSpace(2),
+            // Row(
+            //   children: [
+            //     SizedBox(
+            //       width: SizeConfig.defaultSize! * 21,
+            //       child: Padding(
+            //         padding: const EdgeInsets.only(left: 5),
+            //         child: CustomSmallTextField(
+            //           controller: widget.gpsController,
+            //           onSaved: (data) {
+            //             formInfo.add({'gps': data});
+            //           },
+            //           lableText: 'الفندق',
+            //           maxLines: 1,
+            //         ),
+            //       ),
+            //     ),
+            //     const Spacer(
+            //       flex: 1,
+            //     ),
+            //     SizedBox(
+            //       width: SizeConfig.defaultSize! * 20,
+            //       child: Padding(
+            //         padding: const EdgeInsets.only(right: 5),
+            //         child: CustomSmallTextField(
+            //           controller: widget.passengerController,
+            //           onSaved: (data) {
+            //             formInfo.add({'passenger': data});
+            //           },
+            //           lableText: 'عدد الحجاج',
+            //           inputType: TextInputType.number,
+            //           maxLines: 1,
+            //         ),
+            //       ),
+            //     ),
+            //   ],
+            // ),
+            // const VerticalSpace(2),
             GestureDetector(
               onTap: () {
                 showDialog(
@@ -378,24 +385,24 @@ class _FormPageState extends State<FormPage> {
               },
               child: Container(
                 // height: 50,
-                width: 50,
-                decoration: BoxDecoration(
-                  color: Colors.grey[200],
-                  // shape: BoxShape.circle,
-                  border: Border.all(
-                    color: kMainColor,
-                    width: 2,
+                  width: 50,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[200],
+                    // shape: BoxShape.circle,
+                    border: Border.all(
+                      color: kMainColor,
+                      width: 2,
+                    ),
                   ),
-                ),
-              
+
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text('أضف مجموعة اخرى'),
+                      Text('أضف مجموعة حقائب'),
                       Icon(
                         Icons.add,
-                        
-                                    
+
+
                       ),
                     ],
                   )),

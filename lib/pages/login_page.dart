@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:get/get.dart';
 import 'package:syrian_hajj_project/core/constants.dart';
 import 'package:syrian_hajj_project/core/size_config.dart';
 import 'package:syrian_hajj_project/pages/airport_page.dart';
+import 'package:syrian_hajj_project/pages/home_page.dart';
 import 'package:syrian_hajj_project/pages/register.dart';
 import 'package:syrian_hajj_project/pages/widgets/custom_button.dart';
 import 'package:syrian_hajj_project/pages/widgets/custom_text_field.dart';
@@ -124,7 +126,7 @@ class _LoginPageState extends State<LoginPage> {
                       setState(() {});
                       try {
                         await loginUser();
-                        Navigator.pushNamed(context, AirportPage.id);
+                          Get.offAll(HomePage());
                       } on FirebaseAuthException catch (ex) {
                         if (ex.code == 'user-not-found') {
                           showSnackBar(

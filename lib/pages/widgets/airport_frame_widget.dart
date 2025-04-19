@@ -43,57 +43,60 @@ class AirportFrameWidget extends StatelessWidget {
                 Radius.circular(20),
               ),
             ),
-            height: SizeConfig.defaultSize! * 22,
-            width: double.infinity,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        CustomTextInfoWidget(
-                          title: 'الفندق',
-                          subTitle: hotelName,
-                        ),
-                        CustomTextInfoWidget(
-                          title: 'GPS',
-                          subTitle: gpsNo,
-                        ),
-                      ],
-                    ),
-                    Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        CustomTextInfoWidget(
-                          title: 'الحملة',
-                          subTitle: group,
-                        ),
-                        CustomTextInfoWidget(
-                          title: 'الحجاج',
-                          subTitle: passengerNo,
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                SizedBox(
-                  height: SizeConfig.defaultSize! * 2,
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 5),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+            // height: SizeConfig.defaultSize! * 18,
+            // width: double.infinity,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      TimeWidget(
-                        time: time,
+                      Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          CustomTextInfoWidget(
+                            title: 'الفندق',
+                            subTitle: hotelName,
+                          ),
+                          CustomTextInfoWidget(
+                            title: 'رقم الباص',
+                            subTitle: gpsNo,
+                          ),
+                        ],
+                      ),
+                      Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          CustomTextInfoWidget(
+                            title: 'اسم المجموعة',
+                            subTitle: group,
+                          ),
+                          CustomTextInfoWidget(
+                            title: 'الحجاج',
+                            subTitle: passengerNo,
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                )
-              ],
+                  SizedBox(
+                    height: SizeConfig.defaultSize! * 2,
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 5),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        TimeWidget(
+                          time: time,
+                        ),
+                      ],
+                    ),
+                  )
+                ],
+              ),
             ),
           ),
         ),

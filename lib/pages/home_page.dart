@@ -1,6 +1,8 @@
-  import 'package:flutter/material.dart';
+  import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
   import 'package:syrian_hajj_project/core/size_config.dart';
+import 'package:syrian_hajj_project/pages/airport_main_page.dart';
 import 'package:syrian_hajj_project/pages/airport_page.dart';
 import 'package:syrian_hajj_project/pages/hotel_page.dart';
 import 'package:syrian_hajj_project/pages/mashaaer_page.dart';
@@ -54,46 +56,47 @@ import 'package:syrian_hajj_project/pages/mashaaer_page.dart';
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
+                // MainFameWidget(
+                //   onTap: ()
+                //   {
+                //     Get.to(()=> const HotelPage());
+                //   },
+                //   text: 'تفويج الفنادق',
+                //   icon: const Icon(Icons.hotel),
+                // ),
                 MainFameWidget(
                   onTap: ()
                   {
-                    Get.to(()=> const HotelPage());
-                  },
-                  text: 'تفويج الفنادق',
-                  icon: const Icon(Icons.hotel),
-                ),
-                MainFameWidget(
-                  onTap: ()
-                  {
-                    Get.to(()=> AirportPage());
+                    Get.to(()=> AirportMainPage());
                   },
                   text: 'تفويج المطار',
                   icon: const Icon(Icons.flight_land_sharp),
                 ),
               ],
             ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
+            // Row(
+            //   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            //   children: [
                 MainFameWidget(
                   onTap: ()
-                  {
+                  async {
+                    await FirebaseAuth.instance.signOut();
                     Get.to(()=> const LoginPage());
                   },
                   color: Colors.red,
                   text: 'تسجيل الخروج',
                   icon: const Icon(Icons.logout, color: Colors.red,),
                 ),
-                MainFameWidget(
-                  onTap: ()
-                  {
-                    Get.to(()=> const MashaaerPage());
-                  },
-                  text: 'تفويج المشاعر',
-                  icon: const Icon(Icons.home),
-                ),
-              ],
-            )
+            //     MainFameWidget(
+            //       onTap: ()
+            //       {
+            //         Get.to(()=> const MashaaerPage());
+            //       },
+            //       text: 'تفويج المشاعر',
+            //       icon: const Icon(Icons.home),
+            //     ),
+            //   ],
+            // )
           ],
         ),
       );

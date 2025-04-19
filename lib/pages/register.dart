@@ -1,10 +1,13 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:get/get_core/src/get_main.dart';
 import 'package:modal_progress_hud_nsn/modal_progress_hud_nsn.dart';
 
 import '../core/constants.dart';
 import '../core/size_config.dart';
 import '../helper/show_snack_bar.dart';
+import 'home_page.dart';
 import 'widgets/custom_button.dart';
 import 'widgets/custom_text_field.dart';
 
@@ -116,6 +119,7 @@ class _RegisterPageState extends State<RegisterPage> {
                         setState(() {});
                         try {
                           await registerUser();
+                          Get.offAll(HomePage());
                           showSnackBar(context, 'success');
                         } on FirebaseAuthException catch (ex) {
                           if (ex.code == 'weak-password') {

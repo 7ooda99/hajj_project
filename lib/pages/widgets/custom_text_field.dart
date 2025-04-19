@@ -49,7 +49,7 @@ class CustomTextField extends StatelessWidget {
             ),
             labelText: lableText,
             labelStyle: const TextStyle(
-                fontSize: 20, color: Colors.black, fontFamily: 'Cairo'),
+                fontSize: 14, color: Colors.black, fontFamily: 'Cairo'),
             filled: true,
             fillColor: Colors.transparent,
             border: OutlineInputBorder(
@@ -108,7 +108,7 @@ class CustomSmallTextField extends StatelessWidget {
             alignLabelWithHint: true,
             labelText: lableText,
             labelStyle: const TextStyle(
-                fontSize: 20, color: Colors.black, fontFamily: 'Cairo'),
+                fontSize: 14, color: Colors.black, fontFamily: 'Cairo'),
             filled: true,
             fillColor: Colors.transparent,
             border: OutlineInputBorder(
