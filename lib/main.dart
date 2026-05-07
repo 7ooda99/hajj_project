@@ -8,7 +8,7 @@ import 'package:get/route_manager.dart';
 import 'package:syrian_hajj_project/firebase_options.dart';
 import 'package:syrian_hajj_project/pages/airport_page.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:syrian_hajj_project/services/local_notification_service.dart';
+import 'package:syrian_hajj_project/services/notification_service.dart';
 import 'pages/form_page.dart';
 import 'pages/home_page.dart';
 import 'pages/hotel_page.dart';
@@ -33,7 +33,7 @@ void main() async {
   );
 
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
- 
+  await NotificationService.initialize();
   runApp( const Starter());
 }
 
