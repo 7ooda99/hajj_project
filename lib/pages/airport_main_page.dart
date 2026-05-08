@@ -11,10 +11,6 @@ import 'package:syrian_hajj_project/core/constants.dart';
 import 'dart:ui' as ui;
 import 'package:syrian_hajj_project/helper/show_snack_bar.dart';
 import 'package:syrian_hajj_project/pages/airport_page.dart';
-
-import 'package:syrian_hajj_project/pages/form_page.dart';
-import 'package:syrian_hajj_project/pages/widgets/airport_frame_widget.dart';
-import 'package:intl/intl.dart';
 import '../core/size_config.dart';
 
 class AirportMainPage extends StatelessWidget {
@@ -33,17 +29,19 @@ class AirportMainPage extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        // automaticallyImplyLeading: false,
-        iconTheme: const IconThemeData(
-          color: Colors.black, //change your color here
-        ),
+        iconTheme: const IconThemeData(color: Colors.black),
         backgroundColor: kMainColor,
+        elevation: 0,
         centerTitle: true,
         title: const Text(
           'الرحلات',
-          style: TextStyle(color: Colors.black, fontFamily: 'Cairo'),
+          style: TextStyle(
+            color: Colors.black,
+            fontFamily: 'Cairo',
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+          ),
         ),
-
       ),
       body: allcards(context),
       floatingActionButton: FloatingActionButton(
@@ -143,39 +141,7 @@ class AirportMainPage extends StatelessWidget {
                     ),
                   );
                 },
-                child: Container(
-decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(10),
-                    color: Colors.grey[200],
-                    border: Border.all(
-                      color: kMainColor,
-                      width: 2,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.2),
-                        spreadRadius: 1,
-                        blurRadius: 5,
-                        offset: const Offset(0, 3), // changes position of shadow
-                      ),
-                    ]),
-                  padding: const EdgeInsets.all(10
-),
-                  height: 200,
-                  // width: 200,
-                  margin: const EdgeInsets.symmetric(
-                      vertical: 5, horizontal: 10),
-                  child: Center(
-                    child: Text(
-                      snapshot.data!.docs[index]['travleName'],
-                      style: const TextStyle(
-                        color: Colors.black,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
+                child: _buildFlightCard(snapshot.data!.docs[index]['travleName']),
               );
             },
           );
@@ -184,6 +150,97 @@ decoration: BoxDecoration(
     );
   }
 
+
+  Widget _buildFlightCard(String tripName) {
+    return Container(
+      height: 110,
+      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.12),
+            spreadRadius: 1,
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Row(
+          children: [
+            Container(
+              width: 10,
+              color: kSecondaryColor,
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          'رقم الرحلة',
+                          style: TextStyle(
+                            fontFamily: 'Cairo',
+                            fontSize: 12,
+                            color: Colors.grey[500],
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          tripName,
+                          style: const TextStyle(
+                            fontFamily: 'Cairo',
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.flight_takeoff, color: kSecondaryColor, size: 36),
+                        const SizedBox(height: 4),
+                        Text(
+                          'اضغط للدخول',
+                          style: TextStyle(
+                            fontFamily: 'Cairo',
+                            fontSize: 10,
+                            color: Colors.grey[400],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Container(
+              width: 1,
+              color: Colors.grey[200],
+            ),
+            Container(
+              width: 50,
+              color: kMainColor.withOpacity(0.3),
+              child: const Center(
+                child: Icon(Icons.chevron_left, color: Colors.black54),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   void showCustomDialog(BuildContext context) {
     showDialog(

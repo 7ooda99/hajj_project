@@ -14,7 +14,7 @@ import 'package:syrian_hajj_project/pages/airport_main_page.dart';
 import 'package:syrian_hajj_project/pages/deana_form_page.dart';
 
 import 'package:syrian_hajj_project/pages/form_page.dart';
-import 'package:syrian_hajj_project/pages/widgets/airport_frame_widget.dart';
+
 import 'package:intl/intl.dart';
 import '../core/size_config.dart';
 
@@ -56,22 +56,22 @@ class _AirportPageState extends State<AirportPage> {
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        leading:  IconButton(
-          onPressed: () {
-            Get.off(() => AirportMainPage());
-          },
-          icon: const Icon(
-            Icons.arrow_back_ios,
-            color: Colors.black,
-          ),
+        leading: IconButton(
+          onPressed: () => Get.off(() => AirportMainPage()),
+          icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
         ),
         backgroundColor: kMainColor,
+        elevation: 0,
         centerTitle: true,
-        title:  Text(
-          '${widget.tripName} رحلة ',
-          style: TextStyle(color: Colors.black, fontFamily: 'Cairo'),
+        title: Text(
+          'رحلة ${widget.tripName}',
+          style: const TextStyle(
+            color: Colors.black,
+            fontFamily: 'Cairo',
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+          ),
         ),
-
       ),
       body:
 
@@ -79,49 +79,63 @@ class _AirportPageState extends State<AirportPage> {
             children: [
                // if ( tripType == 'bus')
 
-              Padding(
-                padding: const EdgeInsets.all(8.0),
+              Container(
+                margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.grey[300]!),
+                ),
                 child: CustomSlidingSegmentedControl<int>(
-                  // innerPadding: 3,
-                  innerPadding: const EdgeInsets.all(5),
+                  innerPadding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
-                    color: Colors.grey[200],
-                    borderRadius: BorderRadius.circular(20),
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(14),
                   ),
                   fixedWidth: SizeConfig.defaultSize! * 18,
                   thumbDecoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
+                    color: kSecondaryColor,
+                    borderRadius: BorderRadius.circular(10),
+                    boxShadow: [
+                      BoxShadow(
+                        color: kSecondaryColor.withOpacity(0.4),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
-                   initialValue: 1,
-
+                  initialValue: 1,
                   children: const {
-                    0: Text('دينات', style: TextStyle(
-                      fontSize: 16,
-                      fontFamily: 'Cairo',
-                      color: Colors.black,
-                    ),),
-                    1: Text('باصات', style: TextStyle(
-                      fontSize: 16,
-                      fontFamily: 'Cairo',
-                      color: Colors.black,
-                    ),),
-
+                    0: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.local_taxi, size: 16),
+                        SizedBox(width: 4),
+                        Text('دينات', style: TextStyle(
+                          fontSize: 15,
+                          fontFamily: 'Cairo',
+                          fontWeight: FontWeight.w600,
+                        )),
+                      ],
+                    ),
+                    1: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.directions_bus, size: 16),
+                        SizedBox(width: 4),
+                        Text('باصات', style: TextStyle(
+                          fontSize: 15,
+                          fontFamily: 'Cairo',
+                          fontWeight: FontWeight.w600,
+                        )),
+                      ],
+                    ),
                   },
-                  // onValueChanged: (value) {
-                  //   setState(() {
-                  //     segmentedControlValue = value;
-                  //   });
-                  //   // Optional: Add logic to filter/sort your list based on the selected value
-                  // },
-                  // initialValue: segmentedControlValue,
                   onValueChanged: (int value) {
                     setState(() {
                       selectedValue = value;
                       tripType = value == 0 ? 'deana' : 'bus';
-                      // itemStream = getStreamBasedOnSelection(selectedValue);
                     });
-                    // fetchDataBasedOnSelection(value);
                   },
                 ),
               ),
@@ -239,7 +253,7 @@ class _AirportPageState extends State<AirportPage> {
                     ),
                   );
                 },
-                child: cardDetails(snapshot.data!.docs[index]),
+                child: cardDetails(snapshot.data!.docs[index], tripType),
               );
             },
           );
@@ -248,18 +262,228 @@ class _AirportPageState extends State<AirportPage> {
     );
   }
 
-  Widget cardDetails(DocumentSnapshot docment) {
+  Widget cardDetails(DocumentSnapshot docment, String type) {
     Timestamp t = docment['time'];
     DateTime d = t.toDate();
-    // DateFormat.yMMMd().add_jm().format(d);
     String formattedDateTime =
-        DateFormat('yyyy/MM/dd       -       hh:mm  a').format(d);
-    return AirportFrameWidget(
-      hotelName: docment['gps'].toString(),
-      group: docment['groupName'],
-      passengerNo: docment['passenger'].toString(),
-      gpsNo: docment['busNumber'].toString(),
-      time: formattedDateTime,
+        DateFormat('yyyy/MM/dd  -  hh:mm a').format(d);
+    if (type == 'bus') {
+      return _buildBusCard(docment, formattedDateTime);
+    } else {
+      return _buildDeanaCard(docment, formattedDateTime);
+    }
+  }
+
+  Widget _buildBusCard(DocumentSnapshot doc, String time) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Column(
+          children: [
+            Container(
+              color: kSecondaryColor,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.directions_bus, color: Colors.white, size: 18),
+                      const SizedBox(width: 6),
+                      Text(
+                        'باص رقم: ${doc['busNumber']}',
+                        style: const TextStyle(
+                          fontFamily: 'Cairo',
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Text(
+                    doc['groupName'] ?? '',
+                    style: const TextStyle(
+                      fontFamily: 'Cairo',
+                      color: Colors.white70,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _infoTile(Icons.hotel, 'الفندق', doc['gps'].toString()),
+                  ),
+                  Container(width: 1, height: 50, color: Colors.grey[200]),
+                  Expanded(
+                    child: _infoTile(Icons.people, 'الحجاج', doc['passenger'].toString()),
+                  ),
+                  Container(width: 1, height: 50, color: Colors.grey[200]),
+                  Expanded(
+                    child: _infoTile(Icons.person, 'السائق', doc['group'] ?? ''),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              color: Colors.grey[50],
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              child: Row(
+                children: [
+                  const Icon(Icons.access_time, size: 12, color: Colors.grey),
+                  const SizedBox(width: 4),
+                  Text(
+                    time,
+                    style: const TextStyle(fontSize: 11, color: Colors.grey, fontFamily: 'Cairo'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDeanaCard(DocumentSnapshot doc, String time) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Column(
+          children: [
+            Container(
+              color: const Color(0xff4a7c59),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.local_taxi, color: Colors.white, size: 18),
+                      const SizedBox(width: 6),
+                      const Text(
+                        'دينة',
+                        style: TextStyle(
+                          fontFamily: 'Cairo',
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Text(
+                    doc['groupName'] ?? '',
+                    style: const TextStyle(
+                      fontFamily: 'Cairo',
+                      color: Colors.white70,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _infoTile(Icons.person_outline, 'السائق', doc['group'] ?? ''),
+                  ),
+                  Container(width: 1, height: 50, color: Colors.grey[200]),
+                  Expanded(
+                    child: _infoTile(Icons.phone_android, 'الجوال', doc['hotel'].toString()),
+                  ),
+                ],
+              ),
+            ),
+            if ((doc['notes'] ?? '').toString().isNotEmpty)
+              Container(
+                width: double.infinity,
+                color: Colors.amber[50],
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.notes, size: 14, color: Colors.amber),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        doc['notes'].toString(),
+                        style: const TextStyle(fontSize: 11, fontFamily: 'Cairo'),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            Container(
+              color: Colors.grey[50],
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              child: Row(
+                children: [
+                  const Icon(Icons.access_time, size: 12, color: Colors.grey),
+                  const SizedBox(width: 4),
+                  Text(
+                    time,
+                    style: const TextStyle(fontSize: 11, color: Colors.grey, fontFamily: 'Cairo'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _infoTile(IconData icon, String label, String value) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(icon, size: 18, color: kSecondaryColor),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: TextStyle(fontSize: 10, color: Colors.grey[500], fontFamily: 'Cairo'),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
+          textAlign: TextAlign.center,
+        ),
+      ],
     );
   }
 
