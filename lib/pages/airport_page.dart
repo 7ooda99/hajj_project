@@ -16,14 +16,16 @@ import 'package:syrian_hajj_project/pages/deana_form_page.dart';
 import 'package:syrian_hajj_project/pages/form_page.dart';
 import 'package:syrian_hajj_project/pages/widgets/airport_frame_widget.dart';
 import 'package:intl/intl.dart';
+import 'package:syrian_hajj_project/pages/widgets/deana_airport_frame_widget.dart';
 import '../core/size_config.dart';
 
 class AirportPage extends StatefulWidget {
   final String? tripName;
   final String? tripid;
+  final String? role;
 
 
-  AirportPage({Key? key,  this.tripName, this.tripid, }) : super(key: key);
+  AirportPage({Key? key,  this.tripName, this.tripid,  this.role, }) : super(key: key);
 
   static String id = 'AirportPage';
 
@@ -35,22 +37,23 @@ class AirportPage extends StatefulWidget {
 
 
 class _AirportPageState extends State<AirportPage> {
+
   CollectionReference formInfo =
       FirebaseFirestore.instance.collection(kMessagesCollections);
   int selectedValue = 0;
   late Stream<QuerySnapshot> itemStream;
-   String tripType = 'bus';
+   String tripType = 'باص';
   @override
   void initState() {
     super.initState();
-    itemStream = getStreamBasedOnSelection(selectedValue ); // Initialize with default stream
+    // itemStream = getStreamBasedOnSelection(selectedValue ); // Initialize with default stream
   }
   // final String ttripid=
   final bool isTapped = false;
 
   @override
   Widget build(BuildContext context) {
-    print('the trip name is: ${widget.tripid}');
+
     SizeConfig().init(context);
 
     return Scaffold(
@@ -118,7 +121,7 @@ class _AirportPageState extends State<AirportPage> {
                   onValueChanged: (int value) {
                     setState(() {
                       selectedValue = value;
-                      tripType = value == 0 ? 'deana' : 'bus';
+                      tripType = value == 0 ? 'دينه' : 'باص';
                       // itemStream = getStreamBasedOnSelection(selectedValue);
                     });
                     // fetchDataBasedOnSelection(value);
@@ -130,7 +133,7 @@ class _AirportPageState extends State<AirportPage> {
           ),
 
 
-      floatingActionButton:buildSpeedDial(),
+      floatingActionButton: widget.role != 'admin' ? buildSpeedDial() : SizedBox.shrink(),
       // FloatingActionButton(
       //   onPressed: () {
       //     Get.to(
@@ -158,18 +161,75 @@ class _AirportPageState extends State<AirportPage> {
     print('current user id: ${FirebaseAuth.instance.currentUser?.uid}');
     print('the trip id is: ${widget.tripid}');
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
+      stream: widget.role != 'admin' ?
+
+      FirebaseFirestore.instance
           .collection(kMessagesCollections)
           .where('userId', isEqualTo: userId)
           .where('travelId', isEqualTo: widget.tripid)
           .where('type', isEqualTo: tripType)
           .orderBy('time', descending: true)
-          .snapshots(),
+          .snapshots() :
+      FirebaseFirestore.instance
+          .collection(kMessagesCollections)
+          // .where('userId', isEqualTo: userId)
+          .where('travelId', isEqualTo: widget.tripid)
+          .where('type', isEqualTo: tripType)
+          .orderBy('time', descending: true)
+          .snapshots()
+      ,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           print('snapshot error: ${snapshot.error}');
           return Text("Error: ${snapshot.error}");
 
+        }
+        if (snapshot.data?.docs.isEmpty ?? true) {
+          // Display message when no data found
+          return const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.warning_amber_rounded,
+                  size: 50,
+                  color: Colors.grey,
+                ),
+                Padding(
+                  padding: EdgeInsets.only(right: 16),
+                  child: Text(
+                    'لا توجد بيانات متوفرة ',
+                    textDirection: ui.TextDirection.rtl,
+
+                    style: TextStyle(
+
+                      fontFamily: 'Cairo',
+                      fontSize: 18,
+                      color: Colors.grey,
+                    ),
+                  ),
+
+
+                ),
+                Padding(
+                  padding: EdgeInsets.only(right: 16),
+                  child: Text(
+                    'اضغط على الزر + لإضافة باص او دينه جديدة',
+                    textDirection: ui.TextDirection.rtl,
+
+                    style: TextStyle(
+
+                      fontFamily: 'Cairo',
+                      fontSize: 18,
+                      color: Colors.grey,
+                    ),
+                  ),
+
+
+                ),
+              ],
+            ),
+          );
         }
         if (!snapshot.hasData) {
           return ModalProgressHUD(inAsyncCall: true,child: const Center(child: Text('جاري التحميل....'),),); // LodingView
@@ -181,13 +241,31 @@ class _AirportPageState extends State<AirportPage> {
                 onTap: () {
                   // print(tripid);
                   Get.to(
-                    () => FormPage(
+                    () => snapshot.data!.docs[index]['type'] == 'باص'? FormPage(
+                      userRole: widget.role,
                       gpsControllerText: snapshot.data!.docs[index]['gps'],
                       passengerControllerText:
                           snapshot.data!.docs[index]['passenger'],
                       hotelControllerText: snapshot.data!.docs[index]['hotel'],
                       groupControllerText: snapshot.data!.docs[index]['group'],
-                 notesControllerText: snapshot.data!.docs[index]['notes'],
+                      notesControllerText: snapshot.data!.docs[index]['notes'],
+                      busNumberText: snapshot.data!.docs[index]['busNumber'],
+                      groupNameText: snapshot.data!.docs[index]['groupName'],
+
+                      tripid: snapshot.data!.docs[index].id,
+                      buttonText: 'تعديل',
+                      title: "التعديل على الرحلة الحالية",
+                      travelId: widget.tripid ?? '',
+                      transfareCompanyText: snapshot.data!.docs[index]['transfareCompany'],
+                    ) : DeanaFormPage(
+                      userRole: widget.role,
+                      gpsControllerText: snapshot.data!.docs[index]['gps'],
+                      passengerControllerText:
+                          snapshot.data!.docs[index]['passenger'],
+                      totalBagsText: snapshot.data!.docs[index]['totalBags'],
+                      hotelControllerText: snapshot.data!.docs[index]['hotel'],
+                      groupControllerText: snapshot.data!.docs[index]['group'],
+                      notesControllerText: snapshot.data!.docs[index]['notes'],
                       busNumberText: snapshot.data!.docs[index]['busNumber'],
                       groupNameText: snapshot.data!.docs[index]['groupName'],
 
@@ -196,6 +274,7 @@ class _AirportPageState extends State<AirportPage> {
                       title: "التعديل على الرحلة الحالية",
                       travelId: widget.tripid ?? '',
                     ),
+
                   );
                 },
                 onLongPress: () {
@@ -204,42 +283,114 @@ class _AirportPageState extends State<AirportPage> {
                     builder: (_) => AlertDialog(
                       alignment: Alignment.center,
                       title: const Text(
-                        'حذف الرحلة:',
+                        'خيارات الرحلة:',
                         textDirection: ui.TextDirection.rtl,
                       ),
                       content: const Text(
-                        'هل تريد بالفعل حذف الرحلة؟',
+                        'ماذا تريد أن تفعل بالرحلة؟',
                         textDirection: ui.TextDirection.rtl,
                       ),
+                      actionsAlignment: MainAxisAlignment.spaceEvenly,
                       actions: [
                         TextButton(
                           onPressed: () {
                             Navigator.pop(context);
                           },
-                          child: const Text('لا'),
+                          child: const Text('إلغاء', style: TextStyle(color: Colors.black)),
                         ),
                         TextButton(
-                          onPressed: () {
-                            FirebaseFirestore.instance
+                          onPressed: () async {
+                            final currentData = snapshot.data!.docs[index].data() as Map<String, dynamic>;
+
+                            // Set specific fields to empty values instead of removing
+                            currentData['busNumber'] = '';
+                            currentData['notes'] = '';
+                            currentData['passenger'] = '';
+                            currentData['group'] = '';
+                            currentData['hotel'] = '';
+
+                            // Update the timestamp for the new copy
+                            currentData['time'] = Timestamp.now();
+
+                            // Add the modified data as a new document
+                            await FirebaseFirestore.instance
                                 .collection(kMessagesCollections)
-                                .doc(snapshot.data!.docs[index].id)
-                                .delete();
-                            showSnackBar(
-                              context,
-                              'تم حذف الرحلة',
-                            );
+                                .add(currentData);
+
+                            showSnackBar(context, 'تم نسخ الرحلة بنجاح مع إفراغ البيانات المحددة');
+                            // Navigator.pop(context);
+                          },
+                          child: const Text('نسخ', style: TextStyle(color: Colors.blue)),
+                        ),
+                        TextButton(
+                          onPressed: () async {
+                            final docId = snapshot.data!.docs[index].id;
+
+                            await FirebaseFirestore.instance
+                                .collection(kMessagesCollections)
+                                .doc(docId)
+                                .update({'sent': true});
+
+                            showSnackBar(context, 'تم الإرسال بنجاح');
                             Navigator.pop(context);
                           },
-                          child: const Text(
-                            'نعم',
-                            style: TextStyle(color: Colors.red),
+                          child: const Text('تم الإرسال', style: TextStyle(color: Colors.green)),
+                        ),
+                        Directionality(
+                          textDirection: ui.TextDirection.rtl,
+                          child: TextButton(
+                            onPressed: () {
+                              Navigator.pop(context); // إغلاق الحوار الأول
+
+                              // عرض حوار التأكيد الثاني
+                              showDialog(
+                                context: context,
+                                builder: (_) => AlertDialog(
+                                  alignment: Alignment.center,
+                                  title: Directionality(
+                                    textDirection: ui.TextDirection.rtl,
+                                    child: Text(
+                                      'تأكيد الحذف',
+                                      // textDirection: TextDirection.rtl,
+                                    ),
+                                  ),
+                                  content: Text(
+                                    'هل أنت متأكد من أنك تريد حذف هذه الرحلة نهائيًا؟',
+                                    // textDirection: TextDirection.rtl,
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () {
+                                        Navigator.pop(context);
+                                      },
+                                      child: const Text('إلغاء', style: TextStyle(color: Colors.black)),
+                                    ),
+                                    TextButton(
+                                      onPressed: () async {
+                                        final docId = snapshot.data!.docs[index].id;
+                                        await FirebaseFirestore.instance
+                                            .collection(kMessagesCollections)
+                                            .doc(docId)
+                                            .delete();
+
+                                        Navigator.pop(context); // إغلاق الحوار الثاني
+                                        showSnackBar(context, 'تم حذف الرحلة');
+                                      },
+                                      child: const Text('تأكيد الحذف', style: TextStyle(color: Colors.red)),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                            child: const Text('حذف', style: TextStyle(color: Colors.red)),
                           ),
                         ),
+
                       ],
                     ),
                   );
                 },
-                child: cardDetails(snapshot.data!.docs[index]),
+                child: snapshot.data!.docs[index]['type'] == 'باص'? busCardDetails(snapshot.data!.docs[index], index) : deanaCardDetails(snapshot.data!.docs[index], index) ,
               );
             },
           );
@@ -248,17 +399,40 @@ class _AirportPageState extends State<AirportPage> {
     );
   }
 
-  Widget cardDetails(DocumentSnapshot docment) {
+  Widget busCardDetails(DocumentSnapshot docment, int index) {
     Timestamp t = docment['time'];
     DateTime d = t.toDate();
     // DateFormat.yMMMd().add_jm().format(d);
     String formattedDateTime =
-        DateFormat('yyyy/MM/dd       -       hh:mm  a').format(d);
+        DateFormat('yyyy/MM/dd - hh:mm  a').format(d);
     return AirportFrameWidget(
+      userRole: widget.role,
+      index: index,
+      tripName: widget.tripName ?? '',
+travelId: widget.tripid ?? '',
       hotelName: docment['gps'].toString(),
       group: docment['groupName'],
       passengerNo: docment['passenger'].toString(),
       gpsNo: docment['busNumber'].toString(),
+      time: formattedDateTime,
+      isSent: docment['sent'] ?? false,
+    );
+  }
+  Widget deanaCardDetails(DocumentSnapshot docment, int index) {
+    Timestamp t = docment['time'];
+    DateTime d = t.toDate();
+    // DateFormat.yMMMd().add_jm().format(d);
+    String formattedDateTime =
+    DateFormat('yyyy/MM/dd - hh:mm  a').format(d);
+    return DeanaAirportFrameWidget(
+      userRole: widget.role,
+      travelId: widget.tripid ?? '',
+      tripName: widget.tripName ?? '',
+      index: index,
+      hotelName: docment['gps'].toString(),
+      group: docment['groupName'],
+      passengerNo: docment['groupName'].toString(),
+      gpsNo: docment['totalBags'].toString(),
       time: formattedDateTime,
     );
   }
@@ -325,16 +499,7 @@ class _AirportPageState extends State<AirportPage> {
       ],
     );
   }
-  Stream<QuerySnapshot> getStreamBasedOnSelection(int value) {
-    String userId = FirebaseAuth.instance.currentUser?.uid ?? '';
-    String typeFilter = value == 0 ? 'deana' : 'bus';
-    return FirebaseFirestore.instance
-        .collection(kMessagesCollections)
-        .where('userId', isEqualTo: userId)
-        .where('type', isEqualTo: typeFilter)
-        .orderBy('time', descending: true)
-        .snapshots();
-  }
+
 }
 
 

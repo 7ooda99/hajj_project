@@ -15,9 +15,9 @@ class CustomTextInfoWidget extends StatelessWidget {
       children: [
         Text(
           ': $title',
-          style: const TextStyle(
+          style:  TextStyle(
             fontFamily: 'Cairo',
-            color: Colors.black,
+            color: Colors.grey[800],
             fontSize: 20,
           ),
         ),

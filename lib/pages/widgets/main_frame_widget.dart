@@ -8,55 +8,49 @@ class MainFameWidget extends StatelessWidget {
     Key? key,
     required this.text,
     required this.icon,
-    this.color,
+    this.color = Colors.black,
     this.onTap,
   }) : super(key: key);
+
   final VoidCallback? onTap;
-  final String? text;
-  final Icon? icon;
-  final Color? color;
+  final String text;
+  final IconData icon;
+  final Color color;
+
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(
-        top: 10,
-        left: 1,
-        right: 1,
-      ),
-      child: Material(
-        shadowColor: Colors.grey,
-        elevation: 5,
-        borderRadius: const BorderRadius.all(
-          Radius.circular(20),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 40),
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: color.withOpacity(0.4)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.3),
+              spreadRadius: 2,
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
-        child: GestureDetector(
-          onTap: onTap,
-          child: Container(
-            decoration: BoxDecoration(
-              border: Border.all(
-                color: kSecondaryColor,
-              ),
-              borderRadius: const BorderRadius.all(
-                Radius.circular(20),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 28, color: color),
+            const SizedBox(width: 10),
+            Text(
+              text,
+              style: TextStyle(
+                fontSize: 20,
+                fontFamily: 'Cairo',
+                color: color,
               ),
             ),
-            height: SizeConfig.defaultSize! * 15,
-            width: SizeConfig.defaultSize! * 18.5,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                icon!,
-                Text(
-                  text!,
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontFamily: 'Cairo',
-                    color: color,
-                  ),
-                )
-              ],
-            ),
-          ),
+          ],
         ),
       ),
     );

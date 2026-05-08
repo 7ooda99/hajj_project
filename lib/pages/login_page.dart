@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
@@ -122,28 +123,36 @@ class _LoginPageState extends State<LoginPage> {
                   color: kSecondaryColor,
                   onTap: () async {
                     if (formKey.currentState!.validate()) {
-                      isLoading = true;
-                      setState(() {});
+                      setState(() => isLoading = true);
                       try {
                         await loginUser();
-                          Get.offAll(HomePage());
+
+                        String uid = FirebaseAuth.instance.currentUser!.uid;
+                        String role = await getUserRole(uid);
+
+                        if (role == 'admin') {
+                          Get.offAll(HomePage()); // Navigate to admin-specific homepage
+                        } else {
+                          Get.offAll(HomePage()); // Regular user homepage
+                        }
+
                       } on FirebaseAuthException catch (ex) {
                         if (ex.code == 'user-not-found') {
-                          showSnackBar(
-                              context, 'No user found for that email.');
+                          showSnackBar(context, 'No user found for that email.');
                         } else if (ex.code == 'wrong-password') {
-                          showSnackBar(context,
-                              'Wrong password provided for that user.');
+                          showSnackBar(context, 'Wrong password provided.');
+                        } else {
+                          showSnackBar(context, 'Authentication error.');
                         }
                       } catch (ex) {
-                        showSnackBar(context, 'there was an error');
+                        showSnackBar(context, 'Unexpected error.');
+                      } finally {
+                        setState(() => isLoading = false);
                       }
-                      isLoading = false;
-
-                      setState(() {});
-                    } else {}
+                    }
                   },
                 ),
+
               ],
             ),
           ),
@@ -153,10 +162,41 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> loginUser() async {
-    UserCredential user =
-        await FirebaseAuth.instance.signInWithEmailAndPassword(
+    UserCredential userCredential =
+    await FirebaseAuth.instance.signInWithEmailAndPassword(
       email: email!,
       password: password!,
     );
+
+    User? firebaseUser = userCredential.user;
+
+    if (firebaseUser != null) {
+      await handleUserProfile(firebaseUser);
+    }
   }
+
+  Future<void> handleUserProfile(User firebaseUser) async {
+    final userDocRef =
+    FirebaseFirestore.instance.collection('users').doc(firebaseUser.uid);
+
+    final docSnapshot = await userDocRef.get();
+
+    if (!docSnapshot.exists) {
+      // First-time login, create a new user profile
+      await userDocRef.set({
+        'email': firebaseUser.email,
+        'role': 'user', // default role, adjust manually in Firestore for admins
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    }
+    // User profile exists or has been created, proceed normally
+  }
+
+  Future<String> getUserRole(String uid) async {
+    final docSnapshot =
+    await FirebaseFirestore.instance.collection('users').doc(uid).get();
+    return docSnapshot.data()?['role'] ?? 'user';
+  }
+
+
 }

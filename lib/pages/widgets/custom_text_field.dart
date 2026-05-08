@@ -88,12 +88,12 @@ class CustomSmallTextField extends StatelessWidget {
       child: Directionality(
         textDirection: TextDirection.rtl,
         child: TextFormField(
-          validator: (value) {
-            if (value == null || value.isEmpty) {
-              return 'الرجاء ادخال بيانات';
-            }
-            return null;
-          },
+          // validator: (value) {
+          //   if (value == null || value.isEmpty) {
+          //     return 'الرجاء ادخال بيانات';
+          //   }
+          //   return null;
+          // },
           controller: controller,
           keyboardType: inputType,
           onChanged: onChange,

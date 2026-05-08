@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -26,6 +27,7 @@ class _RegisterPageState extends State<RegisterPage> {
 
   String? email;
   String? password;
+  String? name;
   bool isLoading = false;
 
   @override
@@ -64,6 +66,19 @@ class _RegisterPageState extends State<RegisterPage> {
                   SizedBox(
                     height: SizeConfig.screenHeight! * 0.03,
                   ),
+
+                  CustomSignTextField(
+
+                      obscureText: false,
+                      lableText: 'full arabic name please',
+                      prefixIcon: const Icon(Icons.person),
+                      maxLines: 1,
+                      onChange: (data) {
+                        name = data;
+                      }),
+                  SizedBox(
+                    height: SizeConfig.screenHeight! * 0.02,
+                  ),
                   CustomSignTextField(
                     obscureText: false,
                     lableText: 'Email',
@@ -77,6 +92,7 @@ class _RegisterPageState extends State<RegisterPage> {
                     height: SizeConfig.screenHeight! * 0.02,
                   ),
                   CustomSignTextField(
+
                       obscureText: false,
                       lableText: 'Password',
                       prefixIcon: const Icon(Icons.lock),
@@ -84,6 +100,7 @@ class _RegisterPageState extends State<RegisterPage> {
                       onChange: (data) {
                         password = data;
                       }),
+
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -146,10 +163,21 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   Future<void> registerUser() async {
-    UserCredential user =
-        await FirebaseAuth.instance.createUserWithEmailAndPassword(
+    UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
       email: email!,
       password: password!,
     );
+
+    User? firebaseUser = userCredential.user;
+
+    if (firebaseUser != null) {
+      await FirebaseFirestore.instance.collection('users').doc(firebaseUser.uid).set({
+        'email': email,
+        'name': name,
+        'role': 'user', // default role
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    }
   }
+
 }

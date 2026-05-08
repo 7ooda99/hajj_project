@@ -18,86 +18,41 @@ import 'package:syrian_hajj_project/pages/mashaaer_page.dart';
     Widget build(BuildContext context) {
       SizeConfig().init(context);
       return Scaffold(
-        // backgroundColor: kMainColor,
-        // appBar: AppBar(
-        //   automaticallyImplyLeading: false,
-        //   backgroundColor: kMainColor,
-        //   centerTitle: true,
-        //   title: Text(
-        //     'لجنة الحج العليا السورية',
-        //     style: TextStyle(color: Colors.black, fontFamily: 'Cairo'),
-        //   ),
-          // actions: [
-          //   IconButton(
-          //     onPressed: () {
-          //       Navigator.pushNamed(context, LoginPage.id);
-          //     },
-          //     icon: Icon(
-          //       Icons.logout,
-          //       color: Colors.black,
-          //     ),
-          //   ),
-          // ],
-        // ),
-        body: Column(
-          children: [
-            SizedBox(
-              height: SizeConfig.screenHeight! * 0.10,
-            ),
-            const Image(
-                  image: AssetImage(
-                    "assets/images/logo.png",
+        backgroundColor: Colors.grey.shade50,
+        body: SafeArea(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              const SizedBox(height: 30),
+              const Image(
+                image: AssetImage("assets/images/syrian_logo.png"),
+                height: 180,
+              ),
+              Column(
+                children: [
+                  MainFameWidget(
+                    onTap: () {
+                      Get.to(() => AirportMainPage());
+                    },
+                    text: 'تفويج المطار',
+                    icon: Icons.flight_takeoff_rounded,
+                    color: Colors.green,
                   ),
-                  height: 200,
-                ),
-                SizedBox(
-              height: SizeConfig.screenHeight! * 0.10,
-            ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                // MainFameWidget(
-                //   onTap: ()
-                //   {
-                //     Get.to(()=> const HotelPage());
-                //   },
-                //   text: 'تفويج الفنادق',
-                //   icon: const Icon(Icons.hotel),
-                // ),
-                MainFameWidget(
-                  onTap: ()
-                  {
-                    Get.to(()=> AirportMainPage());
-                  },
-                  text: 'تفويج المطار',
-                  icon: const Icon(Icons.flight_land_sharp),
-                ),
-              ],
-            ),
-            // Row(
-            //   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            //   children: [
-                MainFameWidget(
-                  onTap: ()
-                  async {
-                    await FirebaseAuth.instance.signOut();
-                    Get.to(()=> const LoginPage());
-                  },
-                  color: Colors.red,
-                  text: 'تسجيل الخروج',
-                  icon: const Icon(Icons.logout, color: Colors.red,),
-                ),
-            //     MainFameWidget(
-            //       onTap: ()
-            //       {
-            //         Get.to(()=> const MashaaerPage());
-            //       },
-            //       text: 'تفويج المشاعر',
-            //       icon: const Icon(Icons.home),
-            //     ),
-            //   ],
-            // )
-          ],
+                  const SizedBox(height: 20),
+                  MainFameWidget(
+                    onTap: () async {
+                      await FirebaseAuth.instance.signOut();
+                      Get.offAll(() => const LoginPage());
+                    },
+                    color: Colors.redAccent,
+                    text: 'تسجيل الخروج',
+                    icon: Icons.logout,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 30),
+            ],
+          ),
         ),
       );
     }
