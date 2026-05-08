@@ -1,12 +1,12 @@
-
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:custom_sliding_segmented_control/custom_sliding_segmented_control.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:get/get.dart';
 import 'package:modal_progress_hud_nsn/modal_progress_hud_nsn.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:syrian_hajj_project/core/constants.dart';
 import 'dart:ui' as ui;
 import 'package:syrian_hajj_project/helper/show_snack_bar.dart';
@@ -21,32 +21,164 @@ import '../core/size_config.dart';
 class AirportPage extends StatefulWidget {
   final String? tripName;
   final String? tripid;
+  final String? role;
+  final String? tripOwnerId;
 
-
-  AirportPage({Key? key,  this.tripName, this.tripid, }) : super(key: key);
+  AirportPage({
+    Key? key,
+    this.tripName,
+    this.tripid,
+    this.role,
+    this.tripOwnerId,
+  }) : super(key: key);
 
   static String id = 'AirportPage';
 
-
   @override
   State<AirportPage> createState() => _AirportPageState();
-
 }
 
-
 class _AirportPageState extends State<AirportPage> {
+  static const String busType = 'باص';
+  static const String deanaType = 'دينه';
+
   CollectionReference formInfo =
       FirebaseFirestore.instance.collection(kMessagesCollections);
   int selectedValue = 0;
   late Stream<QuerySnapshot> itemStream;
-   String tripType = 'bus';
+  String tripType = busType;
   @override
   void initState() {
     super.initState();
-    itemStream = getStreamBasedOnSelection(selectedValue ); // Initialize with default stream
+    itemStream = getStreamBasedOnSelection(
+        selectedValue); // Initialize with default stream
   }
+
   // final String ttripid=
   final bool isTapped = false;
+
+  /// true only if the logged-in user is the one who created this trip.
+  bool get _isOwner {
+    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+    return currentUid != null && currentUid == widget.tripOwnerId;
+  }
+
+  Future<void> _shareTrip() async {
+    final querySnapshot = await FirebaseFirestore.instance
+        .collection(kMessagesCollections)
+        .where('travelId', isEqualTo: widget.tripid)
+        .get();
+
+    if (querySnapshot.docs.isEmpty) {
+      showSnackBar(context, 'لا توجد بيانات لمشاركتها');
+      return;
+    }
+
+    List<Map<String, dynamic>> busDataList = [];
+    List<Map<String, dynamic>> deanaDataList = [];
+
+    for (var doc in querySnapshot.docs) {
+      var data = doc.data();
+      if (data['type'] == busType) {
+        busDataList.add(data);
+      } else if (data['type'] == deanaType) {
+        deanaDataList.add(data);
+      }
+    }
+
+    StringBuffer allData = StringBuffer();
+    String formattedDate = DateFormat('yyyy/MM/dd - hh:mm a').format(DateTime.now());
+
+    allData.writeln('تقرير الرحلة: ${widget.tripName}');
+    allData.writeln('التاريخ: $formattedDate');
+    allData.writeln('');
+
+    int totalBusPassengers = 0;
+    int totalDeanaPassengers = 0;
+
+    if (busDataList.isNotEmpty) {
+      allData.writeln('🚌 الباصات (${busDataList.length})');
+      allData.writeln('--------------------');
+
+      for (int i = 0; i < busDataList.length; i++) {
+        final data = busDataList[i];
+        final passengers = int.tryParse(data['passenger']?.toString() ?? '0') ?? 0;
+        totalBusPassengers += passengers;
+
+        allData.writeln('باص ${i + 1}:');
+        if ((data['busNumber'] ?? '').toString().isNotEmpty)
+          allData.writeln('رقم الباص: ${data['busNumber']}');
+        if ((data['group'] ?? '').toString().isNotEmpty)
+          allData.writeln('اسم السائق: ${data['group']}');
+        if ((data['hotel'] ?? '').toString().isNotEmpty)
+          allData.writeln('هاتف السائق: ${data['hotel']}');
+        if ((data['transfareCompany'] ?? '').toString().isNotEmpty)
+          allData.writeln('الشركة الناقلة: ${data['transfareCompany']}');
+        if ((data['groupName'] ?? '').toString().isNotEmpty)
+          allData.writeln('المجموعة: ${data['groupName']}');
+        if ((data['gps'] ?? '').toString().isNotEmpty)
+          allData.writeln('الفندق: ${data['gps']}');
+        allData.writeln('عدد الحجاج: $passengers');
+        if ((data['notes'] ?? '').toString().trim().isNotEmpty)
+          allData.writeln('ملاحظات: ${data['notes']}');
+        allData.writeln('');
+      }
+
+      allData.writeln('إجمالي حجاج الباصات: $totalBusPassengers');
+      allData.writeln('');
+    }
+
+    if (deanaDataList.isNotEmpty) {
+      allData.writeln('🚚 الدينات (${deanaDataList.length})');
+      allData.writeln('--------------------');
+
+      for (int i = 0; i < deanaDataList.length; i++) {
+        final data = deanaDataList[i];
+        final passengers = int.tryParse(data['passenger']?.toString() ?? '0') ?? 0;
+        totalDeanaPassengers += passengers;
+
+        allData.writeln('دينة ${i + 1}:');
+        if ((data['busNumber'] ?? '').toString().isNotEmpty)
+          allData.writeln('رقم الدينة: ${data['busNumber']}');
+        if ((data['group'] ?? '').toString().isNotEmpty)
+          allData.writeln('اسم السائق: ${data['group']}');
+        if ((data['hotel'] ?? '').toString().isNotEmpty)
+          allData.writeln('جوال السائق: ${data['hotel']}');
+        if ((data['groupName'] ?? '').toString().isNotEmpty)
+          allData.writeln('المجموعة: ${data['groupName']}');
+        if ((data['gps'] ?? '').toString().isNotEmpty)
+          allData.writeln('الفندق: ${data['gps']}');
+        if ((data['totalBags'] ?? '').toString().isNotEmpty)
+          allData.writeln('عدد الحقائب: ${data['totalBags']}');
+        if ((data['notes'] ?? '').toString().trim().isNotEmpty)
+          allData.writeln('ملاحظات: ${data['notes']}');
+        allData.writeln('');
+      }
+
+      allData.writeln('إجمالي حجاج الدينات: $totalDeanaPassengers');
+      allData.writeln('');
+    }
+
+    final int grandTotal = totalBusPassengers + totalDeanaPassengers;
+    allData.writeln('--------------------');
+    allData.writeln('✅ الملخص');
+    if (busDataList.isNotEmpty)
+      allData.writeln('باصات: ${busDataList.length}');
+    if (deanaDataList.isNotEmpty)
+      allData.writeln('دينات: ${deanaDataList.length}');
+    allData.writeln('عدد الحجاج الاجمالي: $grandTotal');
+    allData.writeln('');
+
+    try {
+      await Share.share(
+        allData.toString(),
+        subject: 'تقرير الرحلة ${widget.tripName}',
+      );
+    } catch (e) {
+      await Clipboard.setData(ClipboardData(text: allData.toString()));
+      showSnackBar(context, 'تم نسخ التقرير إلى الحافظة ✅');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -58,93 +190,104 @@ class _AirportPageState extends State<AirportPage> {
         automaticallyImplyLeading: false,
         leading: IconButton(
           onPressed: () => Get.off(() => AirportMainPage()),
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+          icon: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 20),
         ),
-        backgroundColor: kMainColor,
+        backgroundColor: kSecondaryColor,
         elevation: 0,
         centerTitle: true,
         title: Text(
           'رحلة ${widget.tripName}',
           style: const TextStyle(
-            color: Colors.black,
+            color: Colors.white,
             fontFamily: 'Cairo',
             fontWeight: FontWeight.bold,
             fontSize: 18,
           ),
         ),
-      ),
-      body:
-
-           Column(
-            children: [
-               // if ( tripType == 'bus')
-
-              Container(
-                margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: Colors.grey[300]!),
-                ),
-                child: CustomSlidingSegmentedControl<int>(
-                  innerPadding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[100],
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  fixedWidth: SizeConfig.defaultSize! * 18,
-                  thumbDecoration: BoxDecoration(
-                    color: kSecondaryColor,
-                    borderRadius: BorderRadius.circular(10),
-                    boxShadow: [
-                      BoxShadow(
-                        color: kSecondaryColor.withOpacity(0.4),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  initialValue: 1,
-                  children: const {
-                    0: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.local_taxi, size: 16),
-                        SizedBox(width: 4),
-                        Text('دينات', style: TextStyle(
-                          fontSize: 15,
-                          fontFamily: 'Cairo',
-                          fontWeight: FontWeight.w600,
-                        )),
-                      ],
-                    ),
-                    1: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.directions_bus, size: 16),
-                        SizedBox(width: 4),
-                        Text('باصات', style: TextStyle(
-                          fontSize: 15,
-                          fontFamily: 'Cairo',
-                          fontWeight: FontWeight.w600,
-                        )),
-                      ],
-                    ),
-                  },
-                  onValueChanged: (int value) {
-                    setState(() {
-                      selectedValue = value;
-                      tripType = value == 0 ? 'deana' : 'bus';
-                    });
-                  },
-                ),
-              ),
-              Expanded(child: allcards(context, tripType)),
-            ],
+        actions: [
+          IconButton(
+            onPressed: _shareTrip,
+            icon: const Icon(Icons.share_rounded, color: Colors.white, size: 22),
+            tooltip: 'مشاركة بيانات الرحلة',
           ),
+        ],
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(
+            bottom: Radius.circular(18),
+          ),
+        ),
+      ),
+      body: Column(
+        children: [
+          // if ( tripType == 'bus')
 
+          Container(
+            margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.grey[300]!),
+            ),
+            child: CustomSlidingSegmentedControl<int>(
+              innerPadding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(14),
+              ),
+              fixedWidth: SizeConfig.defaultSize! * 18,
+              thumbDecoration: BoxDecoration(
+                color: kSecondaryColor,
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: [
+                  BoxShadow(
+                    color: kSecondaryColor.withOpacity(0.4),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              initialValue: 1,
+              children: const {
+                0: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.local_taxi, size: 16),
+                    SizedBox(width: 4),
+                    Text('دينات',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontFamily: 'Cairo',
+                          fontWeight: FontWeight.w600,
+                        )),
+                  ],
+                ),
+                1: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.directions_bus, size: 16),
+                    SizedBox(width: 4),
+                    Text('باصات',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontFamily: 'Cairo',
+                          fontWeight: FontWeight.w600,
+                        )),
+                  ],
+                ),
+              },
+              onValueChanged: (int value) {
+                setState(() {
+                  selectedValue = value;
+                  tripType = value == 0 ? deanaType : busType;
+                });
+              },
+            ),
+          ),
+          Expanded(child: allcards(context, tripType)),
+        ],
+      ),
 
-      floatingActionButton:buildSpeedDial(),
+      floatingActionButton: _isOwner ? buildSpeedDial() : null,
       // FloatingActionButton(
       //   onPressed: () {
       //     Get.to(
@@ -167,72 +310,134 @@ class _AirportPageState extends State<AirportPage> {
     );
   }
 
-  Widget allcards(BuildContext context , String tripType) {
-   String? userId = FirebaseAuth.instance.currentUser?.uid;
-    print('current user id: ${FirebaseAuth.instance.currentUser?.uid}');
+  Widget allcards(BuildContext context, String tripType) {
+    String? userId = FirebaseAuth.instance.currentUser?.uid;
+    print('current user id: $userId');
     print('the trip id is: ${widget.tripid}');
+
+    // Admin sees all entries for this trip; regular user sees only their own.
+    Query<Map<String, dynamic>> query = FirebaseFirestore.instance
+        .collection(kMessagesCollections)
+        .where('travelId', isEqualTo: widget.tripid)
+        .where('type', isEqualTo: tripType)
+        .orderBy('time', descending: true);
+
+    if (widget.role != 'admin') {
+      query = query.where('userId', isEqualTo: userId);
+    }
+
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection(kMessagesCollections)
-          .where('userId', isEqualTo: userId)
-          .where('travelId', isEqualTo: widget.tripid)
-          .where('type', isEqualTo: tripType)
-          .orderBy('time', descending: true)
-          .snapshots(),
+      stream: query.snapshots(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           print('snapshot error: ${snapshot.error}');
           return Text("Error: ${snapshot.error}");
-
         }
         if (!snapshot.hasData) {
-          return ModalProgressHUD(inAsyncCall: true,child: const Center(child: Text('جاري التحميل....'),),); // LodingView
+          return ModalProgressHUD(
+            inAsyncCall: true,
+            child: const Center(
+              child: Text('جاري التحميل....'),
+            ),
+          ); // LodingView
         } else {
           return ListView.builder(
             itemCount: snapshot.data!.docs.length,
             itemBuilder: (context, index) {
               return GestureDetector(
-                onTap: () {
-                  // print(tripid);
-                  Get.to(
-                    () => FormPage(
-                      gpsControllerText: snapshot.data!.docs[index]['gps'],
-                      passengerControllerText:
-                          snapshot.data!.docs[index]['passenger'],
-                      hotelControllerText: snapshot.data!.docs[index]['hotel'],
-                      groupControllerText: snapshot.data!.docs[index]['group'],
-                 notesControllerText: snapshot.data!.docs[index]['notes'],
-                      busNumberText: snapshot.data!.docs[index]['busNumber'],
-                      groupNameText: snapshot.data!.docs[index]['groupName'],
-
-                      tripid: snapshot.data!.docs[index].id,
-                      buttonText: 'تعديل',
-                      title: "التعديل على الرحلة الحالية",
-                      travelId: widget.tripid ?? '',
-                    ),
-                  );
-                },
-                onLongPress: () {
+                onTap: _isOwner ? () {
+                  final doc = snapshot.data!.docs[index];
+                  if (tripType == deanaType) {
+                    Get.to(
+                      () => DeanaFormPage(
+                        gpsControllerText: doc['gps'],
+                        passengerControllerText: doc['passenger'],
+                        hotelControllerText: doc['hotel'],
+                        groupControllerText: doc['group'],
+                        notesControllerText: doc['notes'],
+                        busNumberText: doc['busNumber'],
+                        groupNameText: doc['groupName'],
+                        totalBagsText: (doc.data() as Map<String, dynamic>?)
+                                    ?.containsKey('totalBags') ==
+                                true
+                            ? doc['totalBags']
+                            : '',
+                        tripid: doc.id,
+                        buttonText: 'تعديل',
+                        title: "التعديل على الدينة الحالية",
+                        travelId: widget.tripid ?? '',
+                        userRole: widget.role,
+                      ),
+                    );
+                  } else {
+                    Get.to(
+                      () => FormPage(
+                        gpsControllerText: doc['gps'],
+                        passengerControllerText: doc['passenger'],
+                        hotelControllerText: doc['hotel'],
+                        groupControllerText: doc['group'],
+                        notesControllerText: doc['notes'],
+                        busNumberText: doc['busNumber'],
+                        groupNameText: doc['groupName'],
+                        transfareCompanyText:
+                            (doc.data() as Map<String, dynamic>?)
+                                        ?.containsKey('transfareCompany') ==
+                                    true
+                                ? doc['transfareCompany']
+                                : '',
+                        tripid: doc.id,
+                        buttonText: 'تعديل',
+                        title: "التعديل على الرحلة الحالية",
+                        travelId: widget.tripid ?? '',
+                        userRole: widget.role,
+                      ),
+                    );
+                  }
+                } : null,
+                onLongPress: _isOwner ? () {
                   showDialog(
                     context: context,
                     builder: (_) => AlertDialog(
-                      alignment: Alignment.center,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20)),
                       title: const Text(
-                        'حذف الرحلة:',
+                        'حذف الرحلة',
                         textDirection: ui.TextDirection.rtl,
+                        style: TextStyle(
+                          fontFamily: 'Cairo',
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                          color: Color(0xffD64545),
+                        ),
                       ),
                       content: const Text(
                         'هل تريد بالفعل حذف الرحلة؟',
                         textDirection: ui.TextDirection.rtl,
+                        style: TextStyle(fontFamily: 'Cairo', fontSize: 14),
                       ),
                       actions: [
                         TextButton(
                           onPressed: () {
                             Navigator.pop(context);
                           },
-                          child: const Text('لا'),
+                          child: Text(
+                            'لا',
+                            style: TextStyle(
+                              color: Colors.grey[700],
+                              fontFamily: 'Cairo',
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ),
-                        TextButton(
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xffD64545),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 20, vertical: 8),
+                          ),
                           onPressed: () {
                             FirebaseFirestore.instance
                                 .collection(kMessagesCollections)
@@ -245,14 +450,17 @@ class _AirportPageState extends State<AirportPage> {
                             Navigator.pop(context);
                           },
                           child: const Text(
-                            'نعم',
-                            style: TextStyle(color: Colors.red),
+                            'حذف',
+                            style: TextStyle(
+                              fontFamily: 'Cairo',
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ],
                     ),
                   );
-                },
+                } : null,
                 child: cardDetails(snapshot.data!.docs[index], tripType),
               );
             },
@@ -265,9 +473,8 @@ class _AirportPageState extends State<AirportPage> {
   Widget cardDetails(DocumentSnapshot docment, String type) {
     Timestamp t = docment['time'];
     DateTime d = t.toDate();
-    String formattedDateTime =
-        DateFormat('yyyy/MM/dd  -  hh:mm a').format(d);
-    if (type == 'bus') {
+    String formattedDateTime = DateFormat('yyyy/MM/dd  -  hh:mm a').format(d);
+    if (type == busType) {
       return _buildBusCard(docment, formattedDateTime);
     } else {
       return _buildDeanaCard(docment, formattedDateTime);
@@ -300,10 +507,11 @@ class _AirportPageState extends State<AirportPage> {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.directions_bus, color: Colors.white, size: 18),
+                      const Icon(Icons.directions_bus,
+                          color: Colors.white, size: 18),
                       const SizedBox(width: 6),
                       Text(
-                        'باص رقم: ${doc['busNumber']}',
+                        '${doc['busNumber']}',
                         style: const TextStyle(
                           fontFamily: 'Cairo',
                           color: Colors.white,
@@ -329,15 +537,18 @@ class _AirportPageState extends State<AirportPage> {
               child: Row(
                 children: [
                   Expanded(
-                    child: _infoTile(Icons.hotel, 'الفندق', doc['gps'].toString()),
+                    child:
+                        _infoTile(Icons.hotel, 'الفندق', doc['gps'].toString()),
                   ),
                   Container(width: 1, height: 50, color: Colors.grey[200]),
                   Expanded(
-                    child: _infoTile(Icons.people, 'الحجاج', doc['passenger'].toString()),
+                    child: _infoTile(
+                        Icons.people, 'الحجاج', doc['passenger'].toString()),
                   ),
                   Container(width: 1, height: 50, color: Colors.grey[200]),
                   Expanded(
-                    child: _infoTile(Icons.person, 'السائق', doc['group'] ?? ''),
+                    child:
+                        _infoTile(Icons.person, 'السائق', doc['group'] ?? ''),
                   ),
                 ],
               ),
@@ -351,7 +562,13 @@ class _AirportPageState extends State<AirportPage> {
                   const SizedBox(width: 4),
                   Text(
                     time,
-                    style: const TextStyle(fontSize: 11, color: Colors.grey, fontFamily: 'Cairo'),
+                    style: const TextStyle(
+                        fontSize: 11, color: Colors.grey, fontFamily: 'Cairo'),
+                  ),
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: () => _shareItem(doc, busType),
+                    child: Icon(Icons.share_rounded, size: 16, color: kSecondaryColor),
                   ),
                 ],
               ),
@@ -388,7 +605,8 @@ class _AirportPageState extends State<AirportPage> {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.local_taxi, color: Colors.white, size: 18),
+                      const Icon(Icons.local_taxi,
+                          color: Colors.white, size: 18),
                       const SizedBox(width: 6),
                       const Text(
                         'دينة',
@@ -417,11 +635,13 @@ class _AirportPageState extends State<AirportPage> {
               child: Row(
                 children: [
                   Expanded(
-                    child: _infoTile(Icons.person_outline, 'السائق', doc['group'] ?? ''),
+                    child: _infoTile(
+                        Icons.person_outline, 'السائق', doc['group'] ?? ''),
                   ),
                   Container(width: 1, height: 50, color: Colors.grey[200]),
                   Expanded(
-                    child: _infoTile(Icons.phone_android, 'الجوال', doc['hotel'].toString()),
+                    child: _infoTile(
+                        Icons.phone_android, 'الجوال', doc['hotel'].toString()),
                   ),
                 ],
               ),
@@ -430,7 +650,8 @@ class _AirportPageState extends State<AirportPage> {
               Container(
                 width: double.infinity,
                 color: Colors.amber[50],
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -439,7 +660,8 @@ class _AirportPageState extends State<AirportPage> {
                     Expanded(
                       child: Text(
                         doc['notes'].toString(),
-                        style: const TextStyle(fontSize: 11, fontFamily: 'Cairo'),
+                        style:
+                            const TextStyle(fontSize: 11, fontFamily: 'Cairo'),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -456,7 +678,13 @@ class _AirportPageState extends State<AirportPage> {
                   const SizedBox(width: 4),
                   Text(
                     time,
-                    style: const TextStyle(fontSize: 11, color: Colors.grey, fontFamily: 'Cairo'),
+                    style: const TextStyle(
+                        fontSize: 11, color: Colors.grey, fontFamily: 'Cairo'),
+                  ),
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: () => _shareItem(doc, deanaType),
+                    child: const Icon(Icons.share_rounded, size: 16, color: Color(0xff4a7c59)),
                   ),
                 ],
               ),
@@ -467,6 +695,61 @@ class _AirportPageState extends State<AirportPage> {
     );
   }
 
+  Future<void> _shareItem(DocumentSnapshot doc, String type) async {
+    final data = doc.data() as Map<String, dynamic>;
+    StringBuffer text = StringBuffer();
+
+    final Timestamp t = data['time'];
+    final String formattedDate = DateFormat('yyyy/MM/dd - hh:mm a').format(t.toDate());
+
+    text.writeln('رحلة: ${widget.tripName}');
+    text.writeln('التاريخ: $formattedDate');
+    text.writeln('');
+
+    if (type == busType) {
+      text.writeln('🚌 بيانات الباص');
+      text.writeln('--------------------');
+      if ((data['busNumber'] ?? '').toString().isNotEmpty)
+        text.writeln('رقم الباص: ${data['busNumber']}');
+      if ((data['group'] ?? '').toString().isNotEmpty)
+        text.writeln('اسم السائق: ${data['group']}');
+      if ((data['hotel'] ?? '').toString().isNotEmpty)
+        text.writeln('هاتف السائق: ${data['hotel']}');
+      if ((data['transfareCompany'] ?? '').toString().isNotEmpty)
+        text.writeln('الشركة الناقلة: ${data['transfareCompany']}');
+      if ((data['groupName'] ?? '').toString().isNotEmpty)
+        text.writeln('المجموعة: ${data['groupName']}');
+      if ((data['gps'] ?? '').toString().isNotEmpty)
+        text.writeln('الفندق: ${data['gps']}');
+      text.writeln('عدد الحجاج: ${data['passenger'] ?? ''}');
+    } else {
+      text.writeln('🚚 بيانات الدينة');
+      text.writeln('--------------------');
+      if ((data['busNumber'] ?? '').toString().isNotEmpty)
+        text.writeln('رقم الدينة: ${data['busNumber']}');
+      if ((data['group'] ?? '').toString().isNotEmpty)
+        text.writeln('اسم السائق: ${data['group']}');
+      if ((data['hotel'] ?? '').toString().isNotEmpty)
+        text.writeln('جوال السائق: ${data['hotel']}');
+      if ((data['groupName'] ?? '').toString().isNotEmpty)
+        text.writeln('المجموعة: ${data['groupName']}');
+      if ((data['gps'] ?? '').toString().isNotEmpty)
+        text.writeln('الفندق: ${data['gps']}');
+      if ((data['totalBags'] ?? '').toString().isNotEmpty)
+        text.writeln('عدد الحقائب: ${data['totalBags']}');
+    }
+
+    if ((data['notes'] ?? '').toString().trim().isNotEmpty)
+      text.writeln('ملاحظات: ${data['notes']}');
+
+    try {
+      await Share.share(text.toString());
+    } catch (e) {
+      await Clipboard.setData(ClipboardData(text: text.toString()));
+      showSnackBar(context, 'تم نسخ البيانات إلى الحافظة ✅');
+    }
+  }
+
   Widget _infoTile(IconData icon, String label, String value) {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -475,12 +758,14 @@ class _AirportPageState extends State<AirportPage> {
         const SizedBox(height: 4),
         Text(
           label,
-          style: TextStyle(fontSize: 10, color: Colors.grey[500], fontFamily: 'Cairo'),
+          style: TextStyle(
+              fontSize: 10, color: Colors.grey[500], fontFamily: 'Cairo'),
         ),
         const SizedBox(height: 2),
         Text(
           value,
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
+          style: const TextStyle(
+              fontSize: 13, fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
           textAlign: TextAlign.center,
         ),
       ],
@@ -489,31 +774,30 @@ class _AirportPageState extends State<AirportPage> {
 
   SpeedDial buildSpeedDial() {
     return SpeedDial(
-      icon: Icons.add, // Icon for the FAB
-      activeIcon: Icons.close, // Icon when the FAB is opened
+      icon: Icons.add_rounded,
+      activeIcon: Icons.close_rounded,
       spacing: 3,
-      spaceBetweenChildren: 4,
-      // openCloseDial: openCloseDial,
-      buttonSize: Size(60, 60), // It's the FloatingActionButton size
+      spaceBetweenChildren: 8,
+      buttonSize: const Size(60, 60),
       visible: true,
       closeManually: false,
-      curve: Curves.bounceIn,
-      overlayColor: kMainColor,
-      overlayOpacity: 0.5,
-      onOpen: () => print('Opening dial'),
-      onClose: () => print('Dial closed'),
+      curve: Curves.easeInOut,
+      overlayColor: Colors.black,
+      overlayOpacity: 0.3,
       tooltip: 'Options',
       heroTag: 'speed-dial-hero-tag',
-      backgroundColor: kMainColor,
-      foregroundColor: Colors.black,
+      backgroundColor: kSecondaryColor,
+      foregroundColor: Colors.white,
       elevation: 8.0,
-      shape: CircleBorder(),
+      shape: const CircleBorder(),
       children: [
         SpeedDialChild(
-          child: Icon(Icons.shopping_bag_rounded),
-          backgroundColor: Colors.green,
+          child: const Icon(Icons.local_shipping_rounded, color: Colors.white),
+          backgroundColor: const Color(0xff4a7c59),
           label: 'إضافة دينة جديدة',
-          labelStyle: TextStyle(fontSize: 18.0),
+          labelStyle: const TextStyle(
+              fontSize: 15, fontFamily: 'Cairo', fontWeight: FontWeight.w600),
+          labelBackgroundColor: Colors.white,
           onTap: () {
             Get.to(
               () => DeanaFormPage(
@@ -526,32 +810,30 @@ class _AirportPageState extends State<AirportPage> {
           },
         ),
         SpeedDialChild(
-          child: Icon(Icons.bus_alert),
-          backgroundColor: Colors.red,
+          child: const Icon(Icons.directions_bus_rounded, color: Colors.white),
+          backgroundColor: kSecondaryColor,
           label: 'اضافة باص جديد',
-          labelStyle: TextStyle(fontSize: 18.0),
+          labelStyle: const TextStyle(
+              fontSize: 15, fontFamily: 'Cairo', fontWeight: FontWeight.w600),
+          labelBackgroundColor: Colors.white,
           onTap: () {
             Get.to(
-                        () => FormPage(
-                              tripid: '',
-                              title: 'إضافة باص جديد',
-                              buttonText: 'إضافة',
-                          travelId: widget.tripid ?? '',
-                            ),);
-                        // transition: Transition.rightToLeft,
-                        // duration: const Duration(milliseconds: 500));
-                  },
-
-
-
+              () => FormPage(
+                tripid: '',
+                title: 'إضافة باص جديد',
+                buttonText: 'إضافة',
+                travelId: widget.tripid ?? '',
+              ),
+            );
+          },
         ),
-
       ],
     );
   }
+
   Stream<QuerySnapshot> getStreamBasedOnSelection(int value) {
     String userId = FirebaseAuth.instance.currentUser?.uid ?? '';
-    String typeFilter = value == 0 ? 'deana' : 'bus';
+    String typeFilter = value == 0 ? deanaType : busType;
     return FirebaseFirestore.instance
         .collection(kMessagesCollections)
         .where('userId', isEqualTo: userId)

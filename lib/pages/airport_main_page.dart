@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:modal_progress_hud_nsn/modal_progress_hud_nsn.dart';
 import 'package:share_plus/share_plus.dart';
@@ -25,7 +26,6 @@ class AirportMainPage extends StatefulWidget {
 }
 
 class _AirportMainPageState extends State<AirportMainPage> {
-
   String role = 'user';
   String userName = '';
   bool isRoleLoading = true;
@@ -37,64 +37,94 @@ class _AirportMainPageState extends State<AirportMainPage> {
   }
 
   void fetchUserRole() async {
-    String? userId = FirebaseAuth.instance.currentUser?.uid;
-    DocumentSnapshot docSnapshot = await FirebaseFirestore.instance.collection('users').doc(userId).get();
+    final String? userId = FirebaseAuth.instance.currentUser?.uid;
 
-    setState(() {
-      role = docSnapshot.get('role') ?? 'user';
-      userName = docSnapshot.get('name') ?? '';
-      print('User name: $userName');
-      isRoleLoading = false;
-    });
+    if (userId == null) {
+      if (!mounted) return;
+      setState(() {
+        role = 'user';
+        userName = '';
+        isRoleLoading = false;
+      });
+      return;
+    }
+
+    try {
+      final DocumentSnapshot<Map<String, dynamic>> docSnapshot =
+          await FirebaseFirestore.instance.collection('users').doc(userId).get();
+      final data = docSnapshot.data();
+
+      if (!mounted) return;
+      setState(() {
+        role = (data?['role'] ?? 'user').toString();
+        userName = (data?['name'] ?? '').toString();
+        print('User name: $userName');
+        isRoleLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        role = 'user';
+        userName = '';
+        isRoleLoading = false;
+      });
+      print('Failed to fetch user role: $e');
+    }
   }
 
   CollectionReference formInfo =
       FirebaseFirestore.instance.collection(kMessagesCollections);
 
   final TextEditingController nameController = TextEditingController();
+  final TextEditingController totalPassengersController = TextEditingController();
 
   final TextEditingController emailController = TextEditingController();
- TextEditingController searchController = TextEditingController();
+  TextEditingController searchController = TextEditingController();
   final bool isTapped = false;
 
-   bool isSearchTapped = false;
+  bool isSearchTapped = false;
 
   @override
   Widget build(BuildContext context) {
     SizeConfig().init(context);
 
     return Scaffold(
-     resizeToAvoidBottomInset: false,
-
-
-    appBar: AppBar(
-    // automaticallyImplyLeading: false,
-    iconTheme: const IconThemeData(
-    color: Colors.black, //change your color here
-    ),
-    backgroundColor: kMainColor,
-    centerTitle: true,
-    title: const Text(
-    'الرحلات',
-    style: TextStyle(color: Colors.black, fontFamily: 'Cairo'),
-    ),
-    actions: [
-    IconButton(
-    icon: const Icon(Icons.search),
-    onPressed: () {
-    // Handle the search button tap
-    // You can toggle the visibility of the search bar here
-    setState(() {
-    isSearchTapped = !isSearchTapped;
-    });
-    searchController.clear();
-    print('Search button tapped');
-    },
-    ),
-    ],
-    ),
-
-    body: LayoutBuilder(
+      resizeToAvoidBottomInset: false,
+      appBar: AppBar(
+        iconTheme: const IconThemeData(color: Colors.white),
+        backgroundColor: kSecondaryColor,
+        centerTitle: true,
+        elevation: 0,
+        title: const Text(
+          'الرحلات',
+          style: TextStyle(
+            color: Colors.white,
+            fontFamily: 'Cairo',
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+          ),
+        ),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(
+            bottom: Radius.circular(18),
+          ),
+        ),
+        actions: [
+          IconButton(
+            icon: Icon(
+              isSearchTapped ? Icons.close_rounded : Icons.search_rounded,
+              color: Colors.white,
+            ),
+            onPressed: () {
+              setState(() {
+                isSearchTapped = !isSearchTapped;
+              });
+              searchController.clear();
+            },
+          ),
+        ],
+      ),
+      body: LayoutBuilder(
         builder: (context, constraints) {
           return SingleChildScrollView(
             physics: const NeverScrollableScrollPhysics(),
@@ -107,10 +137,8 @@ class _AirportMainPageState extends State<AirportMainPage> {
                 children: [
                   Visibility(
                     visible: isSearchTapped,
-                    child: Directionality(
-                      textDirection: ui.TextDirection.rtl,
-                      child: Padding(
-                        padding: const EdgeInsets.all(8.0),
+                    child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                         child: TextField(
                           controller: searchController,
                           textInputAction: TextInputAction.search,
@@ -125,23 +153,26 @@ class _AirportMainPageState extends State<AirportMainPage> {
                           },
                           decoration: InputDecoration(
                             hintText: 'ابحث عن الرحلة',
-                            hintStyle: const TextStyle(
+                            hintStyle: TextStyle(
                               fontFamily: 'Cairo',
-                              color: Colors.black,
+                              color: Colors.grey[500],
+                              fontSize: 14,
                             ),
+                            prefixIcon: Icon(Icons.search_rounded, color: kSecondaryColor, size: 20),
                             suffixIcon: IconButton(
                               icon: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                                 decoration: BoxDecoration(
-                                  color: Colors.grey[200],
-                                  borderRadius: BorderRadius.circular(8),
+                                  color: kSecondaryColor,
+                                  borderRadius: BorderRadius.circular(10),
                                 ),
                                 child: const Text(
                                   'بحث',
                                   style: TextStyle(
                                     fontFamily: 'Cairo',
-                                    color: Colors.black,
+                                    color: Colors.white,
                                     fontSize: 12,
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
                               ),
@@ -152,9 +183,20 @@ class _AirportMainPageState extends State<AirportMainPage> {
                                 });
                               },
                             ),
+                            filled: true,
+                            fillColor: const Color(0xffF7F8FA),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              borderSide: const BorderSide(color: Colors.grey),
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: const BorderSide(color: Color(0xffE2E5EA)),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: const BorderSide(color: Color(0xffE2E5EA)),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide(color: kSecondaryColor.withOpacity(0.7), width: 1.5),
                             ),
                           ),
                           textDirection: ui.TextDirection.rtl,
@@ -162,22 +204,26 @@ class _AirportMainPageState extends State<AirportMainPage> {
                           style: const TextStyle(
                             fontFamily: 'Cairo',
                             color: Colors.black,
+                            fontSize: 14,
                           ),
                         ),
                       ),
-                    ),
                   ),
                   Visibility(
                     visible: !isSearchTapped,
                     child: StreamBuilder<QuerySnapshot>(
-                      stream: FirebaseFirestore.instance.collection('formInfo').snapshots(),
+                      stream: FirebaseFirestore.instance
+                          .collection('formInfo')
+                          .snapshots(),
                       builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
                           return Align(
                             alignment: Alignment.centerRight,
                             child: const Text(
                               'جاري الحساب...',
-                              style: TextStyle(color: Colors.black, fontFamily: 'Cairo'),
+                              style: TextStyle(
+                                  color: Colors.black, fontFamily: 'Cairo'),
                             ),
                           );
                         }
@@ -189,7 +235,11 @@ class _AirportMainPageState extends State<AirportMainPage> {
                         final docs = snapshot.data!.docs;
                         final totalPassengers = docs.fold<int>(
                           0,
-                              (sum, doc) => sum + (int.tryParse(doc['passenger']?.toString() ?? '0') ?? 0),
+                          (sum, doc) =>
+                              sum +
+                              (int.tryParse(
+                                      doc['passenger']?.toString() ?? '0') ??
+                                  0),
                         );
 
                         return Padding(
@@ -198,7 +248,8 @@ class _AirportMainPageState extends State<AirportMainPage> {
                             alignment: Alignment.centerRight,
                             child: Text(
                               'مجموع الحجاج : $totalPassengers',
-                              style: const TextStyle(color: Colors.black, fontFamily: 'Cairo'),
+                              style: const TextStyle(
+                                  color: Colors.black, fontFamily: 'Cairo'),
                             ),
                           ),
                         );
@@ -217,26 +268,17 @@ class _AirportMainPageState extends State<AirportMainPage> {
           );
         },
       ),
-
-      floatingActionButton: role != 'admin' ? FloatingActionButton(
-        onPressed: () {
-          showCustomDialog(context, userName);
-          // Get.off(
-          //       () => FormPage(
-          //     tripid: '',
-          //     title: 'إضافة رحلة جديدة',
-          //     buttonText: 'إضافة',
-          //   ),);
-          // transition: Transition.rightToLeft,
-          // duration: const Duration(milliseconds: 500));
-        },
-        backgroundColor: kMainColor,
-        child: const Icon(
-          Icons.edit_outlined,
-          size: 30,
-          color: Colors.black,
-        ),
-      ) : SizedBox.shrink(),
+      floatingActionButton: FloatingActionButton(
+              onPressed: () {
+                showCustomDialog(context, userName);
+              },
+              backgroundColor: kSecondaryColor,
+              child: const Icon(
+                Icons.add_rounded,
+                size: 28,
+                color: Colors.white,
+              ),
+            ),
     );
   }
 
@@ -254,6 +296,7 @@ class _AirportMainPageState extends State<AirportMainPage> {
         return null;
       }
     }
+
     if (isRoleLoading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -265,29 +308,25 @@ class _AirportMainPageState extends State<AirportMainPage> {
     if (query?.isNotEmpty ?? false) {
       stream = (role == 'admin')
           ? FirebaseFirestore.instance
-          .collection(kMainCollections)
-          .orderBy('travleName')
-          .startAt([query])
-          .endAt(['$query\uf8ff'])
-          .snapshots()
+              .collection(kMainCollections)
+              .orderBy('travleName')
+              .startAt([query]).endAt(['$query\uf8ff']).snapshots()
           : FirebaseFirestore.instance
-          .collection(kMainCollections)
-          .where('userId', isEqualTo: userId)
-          .orderBy('travleName')
-          .startAt([query])
-          .endAt(['$query\uf8ff'])
-          .snapshots();
+              .collection(kMainCollections)
+              .where('userId', isEqualTo: userId)
+              .orderBy('travleName')
+              .startAt([query]).endAt(['$query\uf8ff']).snapshots();
     } else {
       stream = (role == 'admin')
           ? FirebaseFirestore.instance
-          .collection(kMainCollections)
-          .orderBy('time', descending: true)
-          .snapshots()
+              .collection(kMainCollections)
+              .orderBy('time', descending: true)
+              .snapshots()
           : FirebaseFirestore.instance
-          .collection(kMainCollections)
-          .where('userId', isEqualTo: userId)
-          .orderBy('time', descending: true)
-          .snapshots();
+              .collection(kMainCollections)
+              .where('userId', isEqualTo: userId)
+              .orderBy('time', descending: true)
+              .snapshots();
     }
 
     return StreamBuilder<QuerySnapshot>(
@@ -311,7 +350,8 @@ class _AirportMainPageState extends State<AirportMainPage> {
                 Text(
                   'لا توجد بيانات متوفرة',
                   textDirection: ui.TextDirection.rtl,
-                  style: TextStyle(fontFamily: 'Cairo', fontSize: 18, color: Colors.grey),
+                  style: TextStyle(
+                      fontFamily: 'Cairo', fontSize: 18, color: Colors.grey),
                 ),
               ],
             ),
@@ -325,43 +365,64 @@ class _AirportMainPageState extends State<AirportMainPage> {
           itemBuilder: (context, index) {
             final data = docs[index].data() as Map<String, dynamic>;
             final DateTime date = data['time']?.toDate() ?? DateTime.now();
-            final String formattedTime = DateFormat('yyyy/MM/dd - hh:mm a').format(date);
+            final String formattedTime =
+                DateFormat('yyyy/MM/dd - hh:mm a').format(date);
             final String travelId = data['travelId'];
 
             return GestureDetector(
               onTap: () => Get.off(() => AirportPage(
-                tripid: travelId,
-                tripName: data['travleName'],
-                role: role,
-              )),
+                    tripid: travelId,
+                    tripName: data['travleName'],
+                    role: role,
+                    tripOwnerId: data['userId'],
+                  )),
               onLongPress: () {
                 showDialog(
                   context: context,
                   builder: (_) => AlertDialog(
-                    alignment: Alignment.center,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                     title: const Text(
-                      'حذف الرحلة:',
+                      'حذف الرحلة',
                       textDirection: ui.TextDirection.rtl,
+                      style: TextStyle(
+                        fontFamily: 'Cairo',
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                        color: Color(0xffD64545),
+                      ),
                     ),
                     content: const Text(
                       'هل تريد بالفعل حذف الرحلة؟',
                       textDirection: ui.TextDirection.rtl,
+                      style: TextStyle(fontFamily: 'Cairo', fontSize: 14),
                     ),
                     actions: [
                       TextButton(
                         onPressed: () {
                           Navigator.pop(context);
                         },
-                        child: const Text('لا', style: TextStyle(
-                          color: Colors.black,
-                        ),),
+                        child: Text(
+                          'لا',
+                          style: TextStyle(
+                            color: Colors.grey[700],
+                            fontFamily: 'Cairo',
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
-                      TextButton(
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xffD64545),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                        ),
                         onPressed: () async {
                           Navigator.pop(context); // close the dialog first
 
                           final mainDocId = snapshot.data!.docs[index].id;
-                          final travelId = snapshot.data!.docs[index]['travelId'];
+                          final travelId =
+                              snapshot.data!.docs[index]['travelId'];
 
                           // Delete related documents first
                           final relatedDocs = await FirebaseFirestore.instance
@@ -382,11 +443,15 @@ class _AirportMainPageState extends State<AirportMainPage> {
                               .doc(mainDocId)
                               .delete();
 
-                          showSnackBar(context, 'تم حذف الرحلة والبيانات المرتبطة بها');
+                          showSnackBar(
+                              context, 'تم حذف الرحلة والبيانات المرتبطة بها');
                         },
                         child: const Text(
-                          'نعم',
-                          style: TextStyle(color: Colors.red),
+                          'حذف',
+                          style: TextStyle(
+                            fontFamily: 'Cairo',
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ],
@@ -394,133 +459,230 @@ class _AirportMainPageState extends State<AirportMainPage> {
                 );
               },
               child: Container(
-                margin: const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
-                padding: const EdgeInsets.all(10),
-                height: 200,
+                margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 14),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(15),
+                  borderRadius: BorderRadius.circular(18),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.grey.withOpacity(0.2),
-                      blurRadius: 10,
-                      spreadRadius: 2,
-                      offset: const Offset(0, 5),
+                      color: Colors.black.withOpacity(0.06),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
                     ),
                   ],
-                  border: Border(left: BorderSide(color: kMainColor, width: 5)),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        FutureBuilder<QuerySnapshot>(
-                          future: FirebaseFirestore.instance
-                              .collection('formInfo')
-                              .where('travelId', isEqualTo: travelId)
-                              .get(),
-                          builder: (context, passengerSnapshot) {
-                            if (passengerSnapshot.connectionState == ConnectionState.waiting) {
-                              return SizedBox(
-                                  width: 15, height: 15, child: CircularProgressIndicator(strokeWidth: 2));
-                            }
-
-                            if (!passengerSnapshot.hasData || passengerSnapshot.data!.docs.isEmpty) {
-                              return const Text(
-                                'الحجاج: 0',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w400,
-                                  color: Colors.grey,
-                                ),
-                              );
-                            }
-
-                            final docs = passengerSnapshot.data!.docs;
-                            int totalPassengers = docs.fold<int>(
-                              0,
-                                  (sum, doc) => sum + (int.tryParse(doc['passenger'].toString()) ?? 0),
-                            );
-                            return Text(
-                              'الحجاج: $totalPassengers',
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w400,
-                                color: Colors.grey,
-                              ),
-                            );
-                          },
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header strip
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              kSecondaryColor,
+                              kSecondaryColor.withOpacity(0.85),
+                            ],
+                          ),
                         ),
-                        if (role == 'admin')
-                          Text(
-                            data['userName'] ?? 'غير محدد',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w400,
-                              color: Colors.grey,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            // Passenger count
+                            FutureBuilder<QuerySnapshot>(
+                              future: FirebaseFirestore.instance
+                                  .collection('formInfo')
+                                  .where('travelId', isEqualTo: travelId)
+                                  .get(),
+                              builder: (context, passengerSnapshot) {
+                                if (passengerSnapshot.connectionState == ConnectionState.waiting) {
+                                  return const SizedBox(
+                                    width: 14, height: 14,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 1.5, color: Colors.white70,
+                                    ),
+                                  );
+                                }
+                                int total = 0;
+                                if (passengerSnapshot.hasData) {
+                                  total = passengerSnapshot.data!.docs.fold<int>(
+                                    0,
+                                    (sum, doc) => sum + (int.tryParse(doc['passenger'].toString()) ?? 0),
+                                  );
+                                }
+                                return Row(
+                                  children: [
+                                    const Icon(Icons.people_alt_rounded, size: 14, color: Colors.white70),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      '$total حاج',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.white70,
+                                        fontFamily: 'Cairo',
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
                             ),
-                          ),
-                      ],
-                    ),
-                    Expanded(
-                      child: Center(
-                        child: Text(
-                          data['travleName'] ?? 'غير محدد',
-                          style: const TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
-                            fontFamily: 'Cairo',
-                          ),
-                          textAlign: TextAlign.center,
+                            // Admin: user name
+                            if (role == 'admin')
+                              Text(
+                                data['userName'] ?? '',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.white60,
+                                  fontFamily: 'Cairo',
+                                ),
+                              ),
+                          ],
                         ),
                       ),
-                    ),
-                    const Divider(thickness: 1, height: 20),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Material(
-                          borderRadius: BorderRadius.circular(20),
 
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: () {
-                              fetchTravelIds(userId!, index, role);
-                            },
-                            child: Icon(
-                              Icons.share,
-                              size: 25,
-                              color: Colors.grey[700],
+                      // Trip name + passenger comparison
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                        child: Column(
+                          children: [
+                            Text(
+                              data['travleName'] ?? 'غير محدد',
+                              style: const TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xff2d2d2d),
+                                fontFamily: 'Cairo',
+                              ),
+                              textAlign: TextAlign.center,
                             ),
+                            // Passenger comparison badge
+                            if (data['totalPassengers'] != null && data['totalPassengers'].toString().isNotEmpty)
+                              FutureBuilder<QuerySnapshot>(
+                                future: FirebaseFirestore.instance
+                                    .collection('formInfo')
+                                    .where('travelId', isEqualTo: travelId)
+                                    .get(),
+                                builder: (context, snap) {
+                                  int entered = 0;
+                                  if (snap.hasData) {
+                                    entered = snap.data!.docs.fold<int>(
+                                      0,
+                                      (sum, doc) => sum + (int.tryParse(doc['passenger'].toString()) ?? 0),
+                                    );
+                                  }
+                                  final int total = int.tryParse(data['totalPassengers'].toString()) ?? 0;
+                                  final bool isComplete = entered >= total && total > 0;
+                                  final double percent = total > 0 ? (entered / total).clamp(0.0, 1.0) : 0.0;
+
+                                  return Padding(
+                                    padding: const EdgeInsets.only(top: 10),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                      decoration: BoxDecoration(
+                                        color: isComplete
+                                            ? const Color(0xff4a7c59).withOpacity(0.08)
+                                            : const Color(0xffE8A838).withOpacity(0.08),
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: isComplete
+                                              ? const Color(0xff4a7c59).withOpacity(0.25)
+                                              : const Color(0xffE8A838).withOpacity(0.25),
+                                        ),
+                                      ),
+                                      child: Column(
+                                        children: [
+                                          Row(
+                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            children: [
+                                              Icon(
+                                                isComplete ? Icons.check_circle_rounded : Icons.info_outline_rounded,
+                                                size: 16,
+                                                color: isComplete ? const Color(0xff4a7c59) : const Color(0xffE8A838),
+                                              ),
+                                              const SizedBox(width: 6),
+                                              Text(
+                                                '$entered / $total حاج',
+                                                style: TextStyle(
+                                                  fontFamily: 'Cairo',
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 14,
+                                                  color: isComplete ? const Color(0xff4a7c59) : const Color(0xffE8A838),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 6),
+                                          ClipRRect(
+                                            borderRadius: BorderRadius.circular(4),
+                                            child: LinearProgressIndicator(
+                                              value: snap.connectionState == ConnectionState.waiting ? null : percent,
+                                              minHeight: 5,
+                                              backgroundColor: Colors.grey[200],
+                                              valueColor: AlwaysStoppedAnimation<Color>(
+                                                isComplete ? const Color(0xff4a7c59) : const Color(0xffE8A838),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                          ],
+                        ),
+                      ),
+
+                      // Footer
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xffF7F8FA),
+                          border: Border(
+                            top: BorderSide(color: Colors.grey[200]!),
                           ),
                         ),
-                        // InkWell(
-                        //   onTap: () => fetchTravelIds(userId!, index, role),
-                        //   child: Icon(
-                        //     Icons.share,
-                        //     size: 20,
-                        //     color: Colors.grey[600],
-                        //   ),
-                        // ),
-                        Spacer(),
-                        Text(
-                          formattedTime,
-                          style: const TextStyle(
-                            fontFamily: 'Cairo',
-                            fontSize: 14,
-                            color: Colors.black54,
-                          ),
+                        child: Row(
+                          children: [
+                            // Share button
+                            Material(
+                              color: Colors.transparent,
+                              borderRadius: BorderRadius.circular(20),
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(20),
+                                onTap: () {
+                                  fetchTravelIds(userId!, index, role);
+                                },
+                                child: Padding(
+                                  padding: const EdgeInsets.all(6),
+                                  child: Icon(
+                                    Icons.share_rounded,
+                                    size: 20,
+                                    color: kSecondaryColor,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const Spacer(),
+                            Icon(Icons.calendar_today_rounded,
+                                size: 13, color: Colors.grey[500]),
+                            const SizedBox(width: 5),
+                            Text(
+                              formattedTime,
+                              style: TextStyle(
+                                fontFamily: 'Cairo',
+                                fontSize: 12,
+                                color: Colors.grey[500],
+                              ),
+                            ),
+                            const Spacer(),
+                          ],
                         ),
-                        const SizedBox(width: 5),
-                        Icon(Icons.calendar_today, size: 16, color: Colors.grey[600]),
-                        Spacer(),
-                      ],
-                    ),
-                  ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             );
@@ -529,21 +691,22 @@ class _AirportMainPageState extends State<AirportMainPage> {
       },
     );
   }
-  Future<String> fetchTravelIds(String userId, int index, String userRole) async {
+
+  Future<String> fetchTravelIds(
+      String userId, int index, String userRole) async {
     print('Fetching travel details for userId at index: $index');
 
     // Step 1: Fetch user trips
-    var snapshot = userRole != 'admin' ?
-    await FirebaseFirestore.instance
-        .collection(kMainCollections)
-        .where('userId', isEqualTo: userId)
-        .orderBy('time', descending: true)
-        .get() :
-    await FirebaseFirestore.instance
-        .collection(kMainCollections)
-        .orderBy('time', descending: true)
-        .get()
-    ;
+    var snapshot = userRole != 'admin'
+        ? await FirebaseFirestore.instance
+            .collection(kMainCollections)
+            .where('userId', isEqualTo: userId)
+            .orderBy('time', descending: true)
+            .get()
+        : await FirebaseFirestore.instance
+            .collection(kMainCollections)
+            .orderBy('time', descending: true)
+            .get();
 
     if (index >= snapshot.docs.length) {
       print('Invalid index: $index');
@@ -581,35 +744,110 @@ class _AirportMainPageState extends State<AirportMainPage> {
       }
     }
 
-    // Step 4: Format bus data
+    // Step 4: Build formatted share text
     StringBuffer allData = StringBuffer();
+    String formattedDate = DateFormat('yyyy/MM/dd - hh:mm a').format(DateTime.now());
+    final totalPassengers = selectedTripData['totalPassengers']?.toString() ?? '';
 
+    allData.writeln('تقرير الرحلة: $travelName');
+    allData.writeln('التاريخ: $formattedDate');
+    allData.writeln('');
 
+    int totalBusPassengers = 0;
+    int totalDeanaPassengers = 0;
+
+    // ── Buses section ──
     if (busDataList.isNotEmpty) {
-      allData.writeln('🚌 بيانات الباصات للرحلة : $travelName\n');
-      String formattedDate = DateFormat('yyyy/MM/dd').format(DateTime.now());
-      allData.writeln('🕓 التاريخ: $formattedDate\n');
-      for (var data in busDataList) {
-        allData.writeln(formatBusData(data, travelName));
+      allData.writeln('🚌 الباصات (${busDataList.length})');
+      allData.writeln('--------------------');
+
+      for (int i = 0; i < busDataList.length; i++) {
+        final data = busDataList[i];
+        final passengers = int.tryParse(data['passenger']?.toString() ?? '0') ?? 0;
+        totalBusPassengers += passengers;
+
+        allData.writeln('باص ${i + 1}:');
+        if ((data['busNumber'] ?? '').toString().isNotEmpty)
+          allData.writeln('رقم الباص: ${data['busNumber']}');
+        if ((data['group'] ?? '').toString().isNotEmpty)
+          allData.writeln('اسم السائق: ${data['group']}');
+        if ((data['hotel'] ?? '').toString().isNotEmpty)
+          allData.writeln('هاتف السائق: ${data['hotel']}');
+        if ((data['transfareCompany'] ?? '').toString().isNotEmpty)
+          allData.writeln('الشركة الناقلة: ${data['transfareCompany']}');
+        if ((data['groupName'] ?? '').toString().isNotEmpty)
+          allData.writeln('المجموعة: ${data['groupName']}');
+        if ((data['gps'] ?? '').toString().isNotEmpty)
+          allData.writeln('الفندق: ${data['gps']}');
+        allData.writeln('عدد الحجاج: $passengers');
+        if ((data['notes'] ?? '').toString().trim().isNotEmpty)
+          allData.writeln('ملاحظات: ${data['notes']}');
+        allData.writeln('');
       }
+
+      allData.writeln('إجمالي حجاج الباصات: $totalBusPassengers');
+      allData.writeln('');
     }
 
-    // Step 5: Format deana data
+    // ── Deanas section ──
     if (deanaDataList.isNotEmpty) {
-      allData.writeln('\n🚚 بيانات الديانات للرحلة : $travelName\n');
-      for (var data in deanaDataList) {
-        allData.writeln(formatDeanaData(data, travelName));
+      allData.writeln('🚚 الدينات (${deanaDataList.length})');
+      allData.writeln('--------------------');
+
+      for (int i = 0; i < deanaDataList.length; i++) {
+        final data = deanaDataList[i];
+        final passengers = int.tryParse(data['passenger']?.toString() ?? '0') ?? 0;
+        totalDeanaPassengers += passengers;
+
+        allData.writeln('دينة ${i + 1}:');
+        if ((data['busNumber'] ?? '').toString().isNotEmpty)
+          allData.writeln('رقم الدينة: ${data['busNumber']}');
+        if ((data['group'] ?? '').toString().isNotEmpty)
+          allData.writeln('اسم السائق: ${data['group']}');
+        if ((data['hotel'] ?? '').toString().isNotEmpty)
+          allData.writeln('جوال السائق: ${data['hotel']}');
+        if ((data['groupName'] ?? '').toString().isNotEmpty)
+          allData.writeln('المجموعة: ${data['groupName']}');
+        if ((data['gps'] ?? '').toString().isNotEmpty)
+          allData.writeln('الفندق: ${data['gps']}');
+        if ((data['totalBags'] ?? '').toString().isNotEmpty)
+          allData.writeln('عدد الحقائب: ${data['totalBags']}');
+        if ((data['notes'] ?? '').toString().trim().isNotEmpty)
+          allData.writeln('ملاحظات: ${data['notes']}');
+        allData.writeln('');
       }
+
+      allData.writeln('إجمالي حجاج الدينات: $totalDeanaPassengers');
+      allData.writeln('');
     }
 
-    // Step 6: Share
+    // ── Summary ──
+    final int grandTotal = totalBusPassengers + totalDeanaPassengers;
+    allData.writeln('--------------------');
+    allData.writeln('✅ الملخص');
+    if (busDataList.isNotEmpty)
+      allData.writeln('باصات: ${busDataList.length}');
+    if (deanaDataList.isNotEmpty)
+      allData.writeln('دينات: ${deanaDataList.length}');
+    allData.writeln('عدد الحجاج الاجمالي: $grandTotal');
+    allData.writeln('');
+
+    // Step 5: Share
     if (allData.isNotEmpty) {
-      Share.share(
-        allData.toString(),
-        subject: 'تفاصيل الرحلة $travelName',
-      );
+      try {
+        await Share.share(
+          allData.toString(),
+          subject: 'تقرير الرحلة $travelName',
+        );
+      } catch (e) {
+        // Fallback: copy to clipboard if share plugin fails (e.g. Simulator)
+        await Clipboard.setData(ClipboardData(text: allData.toString()));
+        showSnackBar(
+          Get.context!,
+          'تم نسخ التقرير إلى الحافظة ✅',
+        );
+      }
     } else {
-      print('No valid documents to share for travelId: $travelId');
       showSnackBar(
         Get.context!,
         'لا توجد بيانات لمشاركتها',
@@ -622,38 +860,11 @@ class _AirportMainPageState extends State<AirportMainPage> {
 // Helpers
 
   String formatBusData(Map<String, dynamic> data, String travelName) {
-    String formattedDate = DateFormat('yyyy/MM/dd').format(
-      (data['time'] as Timestamp).toDate(),
-    );
-    return '''
-اسم السائق : ${data['group'] ?? ''}
-هاتف السائق : ${data['hotel'] ?? ''}
-رقم الباص : ${data['busNumber'] ?? ''}
-الشركة الناقلة : ${data['transfareCompany'] ?? ''}
-الفندق : ${data['gps'] ?? ''}
-اسم المجموعة / التكتل : ${data['groupName'] ?? ''}
-عدد الحجاج : ${data['passenger'] ?? ''}
-الملاحظات : ${data['notes'] ?? ''}
---------------------
-''';
+    return '';
   }
 
-
-
   String formatDeanaData(Map<String, dynamic> data, String travelName) {
-    String formattedDate = DateFormat('yyyy/MM/dd').format(
-      (data['time'] as Timestamp).toDate(),
-    );
-    return '''
-اسم السائق: ${data['group'] ?? ''}
-جوال السائق: ${data['hotel'] ?? ''}
-رقم الدينه: ${data['busNumber'] ?? ''}
-اسم الفندق: ${data['gps'] ?? ''}
-اسم المجموعة: ${data['groupName'] ?? ''}
-عدد الحقائب: ${data['totalBags'] ?? ''}
-ملاحظات: ${data['notes'] ?? ''}
---------------------
-''';
+    return '';
   }
 
   // Future<List<DocumentSnapshot>> fetchMessagesByTravelIds(List<String> travelIds) async {
@@ -662,9 +873,19 @@ class _AirportMainPageState extends State<AirportMainPage> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: Directionality(
-              textDirection: ui.TextDirection.rtl,
-              child: Text("ادخال رقم الرحلة")),
+            textDirection: ui.TextDirection.rtl,
+            child: Text(
+              "إضافة رحلة جديدة",
+              style: TextStyle(
+                fontFamily: 'Cairo',
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+                color: kSecondaryColor,
+              ),
+            ),
+          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
@@ -673,43 +894,101 @@ class _AirportMainPageState extends State<AirportMainPage> {
                 child: TextField(
                   controller: nameController,
                   decoration: InputDecoration(
-                    labelStyle: const TextStyle(
-                      fontFamily: 'Cairo',
-                      color: Colors.black,
-                    ),
                     labelText: "رقم الرحلة",
+                    labelStyle: TextStyle(
+                      fontFamily: 'Cairo',
+                      color: Colors.grey[600],
+                      fontSize: 14,
+                    ),
+                    filled: true,
+                    fillColor: const Color(0xffF7F8FA),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: const BorderSide(color: Color(0xffE2E5EA)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: const BorderSide(color: Color(0xffE2E5EA)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide(color: kSecondaryColor.withOpacity(0.7), width: 1.5),
+                    ),
                   ),
+                  style: const TextStyle(fontFamily: 'Cairo', fontSize: 14),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Directionality(
+                textDirection: ui.TextDirection.rtl,
+                child: TextField(
+                  controller: totalPassengersController,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  decoration: InputDecoration(
+                    labelText: "عدد الحجاج الإجمالي",
+                    prefixIcon: Icon(Icons.people_alt_rounded, color: kSecondaryColor, size: 20),
+                    labelStyle: TextStyle(
+                      fontFamily: 'Cairo',
+                      color: Colors.grey[600],
+                      fontSize: 14,
+                    ),
+                    filled: true,
+                    fillColor: const Color(0xffF7F8FA),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: const BorderSide(color: Color(0xffE2E5EA)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: const BorderSide(color: Color(0xffE2E5EA)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide(color: kSecondaryColor.withOpacity(0.7), width: 1.5),
+                    ),
+                  ),
+                  style: const TextStyle(fontFamily: 'Cairo', fontSize: 14),
                 ),
               ),
             ],
           ),
           actions: <Widget>[
             TextButton(
-              child: Text("الغاء",
-                  style: TextStyle(
-                    color: Colors.red,
-                  )),
+              child: const Text(
+                "إلغاء",
+                style: TextStyle(
+                  color: Color(0xffD64545),
+                  fontFamily: 'Cairo',
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               onPressed: () {
-                Navigator.of(context).pop(); // Close the dialog
+                Navigator.of(context).pop();
               },
             ),
-            TextButton(
-              child: Text("إضافة",
-                  style: TextStyle(
-                    color: Colors.green,
-                  )),
-
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: kSecondaryColor,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              ),
+              child: const Text(
+                "إضافة",
+                style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.bold),
+              ),
               onPressed: () {
                 if (nameController.text.isEmpty) {
-                  // Show an alert or another error message if the field is empty
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
                     content: Text('يرجى تعبئة رقم الرحلة'),
                     duration: Duration(seconds: 2),
                   ));
                 } else {
-                  submitData(); // Pass the data to be submitted
-                  Navigator.of(context)
-                      .pop(); // Close the dialog after data submission
+                  submitData();
+                  Navigator.of(context).pop();
                 }
               },
             ),
@@ -727,16 +1006,16 @@ class _AirportMainPageState extends State<AirportMainPage> {
       'userId': FirebaseAuth.instance.currentUser?.uid,
       'travleName': nameController.text,
       'travelId': randomNumber.toString(),
-      'userName' : userName,
+      'userName': userName,
+      'totalPassengers': totalPassengersController.text,
       "time": Timestamp.now(),
     }).then((result) {
       print("Data added successfully.");
-      nameController.clear(); // Clear the text fields after submission
+      nameController.clear();
+      totalPassengersController.clear();
       emailController.clear();
     }).catchError((error) {
       print("Failed to add data: $error");
     });
   }
 }
-
-

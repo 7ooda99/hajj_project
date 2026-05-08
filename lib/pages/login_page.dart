@@ -31,129 +31,183 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     SizeConfig().init(context);
     return Scaffold(
-      backgroundColor: kMainColor,
-      body: Center(
-        child: Form(
-          key: formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              children: [
-                SizedBox(
-                  height: SizeConfig.screenHeight! * 0.001,
-                ),
-                const Image(
-                  image: AssetImage(
-                    "assets/images/logo.png",
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              kSecondaryColor.withOpacity(0.10),
+              Colors.white,
+              Colors.white,
+              kSecondaryColor.withOpacity(0.05),
+            ],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            stops: const [0.0, 0.3, 0.7, 1.0],
+          ),
+        ),
+        child: Center(
+          child: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Column(
+                children: [
+                  SizedBox(height: SizeConfig.screenHeight! * 0.06),
+
+                  // Logo with subtle shadow
+                  Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: kMainColor.withOpacity(0.25),
+                          blurRadius: 40,
+                          spreadRadius: 5,
+                        ),
+                      ],
+                    ),
+                    child: const Image(
+                      image: AssetImage("assets/images/logo.png"),
+                      height: 180,
+                    ),
                   ),
-                  height: 200,
-                ),
-                SizedBox(
-                  height: SizeConfig.screenHeight! * 0.09,
-                ),
-                const Text(
-                  'تسجيل الدخول',
-                  style: TextStyle(
-                    fontFamily: 'Cairo',
-                    fontSize: 20,
-                    color: Colors.black,
+
+                  SizedBox(height: SizeConfig.screenHeight! * 0.05),
+
+                  // Title
+                  Text(
+                    'تسجيل الدخول',
+                    style: TextStyle(
+                      fontFamily: 'Cairo',
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: kSecondaryColor,
+                    ),
                   ),
-                ),
-                SizedBox(
-                  height: SizeConfig.screenHeight! * 0.03,
-                ),
-                CustomSignTextField(
-                  obscureText: false,
-                  lableText: 'Email',
-                  prefixIcon: const Icon(Icons.email),
-                  maxLines: 1,
-                  onChange: (data) {
-                    email = data;
-                  },
-                ),
-                SizedBox(
-                  height: SizeConfig.screenHeight! * 0.02,
-                ),
-                CustomSignTextField(
-                  suffixIcon: IconButton(
+                  const SizedBox(height: 4),
+                  Text(
+                    'مرحباً بعودتك',
+                    style: TextStyle(
+                      fontFamily: 'Cairo',
+                      fontSize: 14,
+                      color: Colors.grey[500],
+                    ),
+                  ),
+
+                  SizedBox(height: SizeConfig.screenHeight! * 0.04),
+
+                  // Email field
+                  CustomSignTextField(
+                    obscureText: false,
+                    lableText: 'البريد الإلكتروني',
+                    prefixIcon: Icon(Icons.email_outlined, color: kSecondaryColor),
+                    maxLines: 1,
+                    onChange: (data) {
+                      email = data;
+                    },
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Password field
+                  CustomSignTextField(
+                    suffixIcon: IconButton(
                       onPressed: () {
                         setState(() {
                           isPassword = !isPassword;
-                         
                         });
                       },
                       icon: Icon(
-                        isPassword ? Icons.visibility : Icons.visibility_off,
-                      ),),
-                  obscureText: isPassword,
-                  lableText: 'Password',
-                  prefixIcon: const Icon(Icons.lock),
-                  maxLines: 1,
-                  onChange: (data) {
-                    password = data;
-                  },
-                ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    TextButton(
-                      child: const Text(
-                        'انشاء حساب جديد',
+                        isPassword
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                    obscureText: isPassword,
+                    lableText: 'كلمة المرور',
+                    prefixIcon: Icon(Icons.lock_outline_rounded, color: kSecondaryColor),
+                    maxLines: 1,
+                    onChange: (data) {
+                      password = data;
+                    },
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  // Register link
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      TextButton(
+                        child: Text(
+                          'انشاء حساب جديد',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontFamily: 'Cairo',
+                            fontWeight: FontWeight.bold,
+                            color: kSecondaryColor,
+                            decoration: TextDecoration.underline,
+                            decorationColor: kSecondaryColor,
+                          ),
+                        ),
+                        onPressed: () {
+                          Navigator.pushNamed(context, RegisterPage.id);
+                        },
+                      ),
+                      Text(
+                        ' لايوجد لديك حساب؟',
                         style: TextStyle(
-                          fontSize: 16,
+                          fontSize: 13,
+                          color: Colors.grey[600],
                           fontFamily: 'Cairo',
-                          color: Colors.black,
-                          decoration: TextDecoration.underline,
                         ),
                       ),
-                      onPressed: () {
-                        Navigator.pushNamed(context, RegisterPage.id);
-                      },
-                    ),
-                    const Text(
-                      ' لايوجد لديك حساب؟',
-                      style: TextStyle(fontSize: 14, color: Colors.black,fontFamily: 'Cairo'),
-                    ),
-                  ],
-                ),
-                SizedBox(
-                  height: SizeConfig.screenHeight! * 0.14,
-                ),
-                CustomButton(
-                  text: 'دخول',
-                  color: kSecondaryColor,
-                  onTap: () async {
-                    if (formKey.currentState!.validate()) {
-                      setState(() => isLoading = true);
-                      try {
-                        await loginUser();
+                    ],
+                  ),
 
-                        String uid = FirebaseAuth.instance.currentUser!.uid;
-                        String role = await getUserRole(uid);
+                  SizedBox(height: SizeConfig.screenHeight! * 0.08),
 
-                        if (role == 'admin') {
-                          Get.offAll(HomePage()); // Navigate to admin-specific homepage
-                        } else {
-                          Get.offAll(HomePage()); // Regular user homepage
+                  // Login button
+                  CustomButton(
+                    text: 'دخول',
+                    color: kSecondaryColor,
+                    onTap: () async {
+                      if (formKey.currentState!.validate()) {
+                        setState(() => isLoading = true);
+                        try {
+                          await loginUser();
+
+                          String uid = FirebaseAuth.instance.currentUser!.uid;
+                          String role = await getUserRole(uid);
+
+                          if (role == 'admin') {
+                            Get.offAll(HomePage()); // Navigate to admin-specific homepage
+                          } else {
+                            Get.offAll(HomePage()); // Regular user homepage
+                          }
+
+                        } on FirebaseAuthException catch (ex) {
+                          if (ex.code == 'user-not-found') {
+                            showSnackBar(context, 'No user found for that email.');
+                          } else if (ex.code == 'wrong-password') {
+                            showSnackBar(context, 'Wrong password provided.');
+                          } else {
+                            showSnackBar(context, 'Authentication error.');
+                          }
+                        } catch (ex) {
+                          showSnackBar(context, 'Unexpected error.');
+                        } finally {
+                          setState(() => isLoading = false);
                         }
-
-                      } on FirebaseAuthException catch (ex) {
-                        if (ex.code == 'user-not-found') {
-                          showSnackBar(context, 'No user found for that email.');
-                        } else if (ex.code == 'wrong-password') {
-                          showSnackBar(context, 'Wrong password provided.');
-                        } else {
-                          showSnackBar(context, 'Authentication error.');
-                        }
-                      } catch (ex) {
-                        showSnackBar(context, 'Unexpected error.');
-                      } finally {
-                        setState(() => isLoading = false);
                       }
-                    }
-                  },
-                ),
+                    },
+                  ),
 
-              ],
+                  const SizedBox(height: 20),
+                ],
+              ),
             ),
           ),
         ),

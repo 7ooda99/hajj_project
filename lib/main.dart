@@ -76,37 +76,49 @@ class _StarterState extends State<Starter> {
       theme: ThemeData(
         primaryColorLight: kMainColor,
         colorScheme: ColorScheme.fromSeed(
-          seedColor:kMainColor, // This sets the primary color
-          primary:
-          kMainColor, // Explicitly setting the primary color
-          onPrimary: Colors
-              .white, // Color for text and icons on primary color
-          secondary: Colors.blueAccent, // Secondary color
-          onSecondary: Colors
-              .white, // Color for text and icons on secondary color
+          seedColor: kSecondaryColor,
+          primary: kSecondaryColor,
+          onPrimary: Colors.white,
+          secondary: kMainColor,
+          onSecondary: Colors.black,
+          surface: Colors.white,
         ),
-
-        primaryColor: kMainColor,
+        primaryColor: kSecondaryColor,
         canvasColor: Colors.white,
-        indicatorColor: Colors.white,
-        primarySwatch: Colors
-            .blue, // Change from Colors.purple to Colors.blue
+        indicatorColor: kSecondaryColor,
+        fontFamily: 'Cairo',
         textSelectionTheme: TextSelectionThemeData(
-          cursorColor: Colors.black, // Cursor color
-          selectionColor: Colors.blue.shade400
-              .withOpacity(0.4), // Selection color
-          selectionHandleColor: kMainColor,
+          cursorColor: kSecondaryColor,
+          selectionColor: kSecondaryColor.withOpacity(0.3),
+          selectionHandleColor: kSecondaryColor,
         ),
-
-        scaffoldBackgroundColor: Colors.white,
-
-        // outlinedButtonTheme: OutlinedButtonThemeData(
-        //   style: ButtonStyle(
-        //    padding:
-        //   )
-        // ),
+        scaffoldBackgroundColor: const Color(0xffFAFBFC),
+        appBarTheme: AppBarTheme(
+          backgroundColor: kSecondaryColor,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          centerTitle: true,
+          titleTextStyle: const TextStyle(
+            fontFamily: 'Cairo',
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+            color: Colors.white,
+          ),
+        ),
+        dialogTheme: DialogThemeData(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          titleTextStyle: TextStyle(
+            fontFamily: 'Cairo',
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: kSecondaryColor,
+          ),
+        ),
         bottomSheetTheme: const BottomSheetThemeData(
           backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
         ),
       ),
       debugShowCheckedModeBanner: false,
