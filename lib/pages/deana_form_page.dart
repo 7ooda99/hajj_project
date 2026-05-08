@@ -81,6 +81,30 @@ class DeanaFormPage extends StatefulWidget {
 class _DeanaFormPageState extends State<DeanaFormPage> {
   List<TextEditingController> _controllers = [];
 
+  Widget _sectionHeader(IconData icon, String title) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      child: Row(
+        textDirection: ui.TextDirection.rtl,
+        children: [
+          Icon(icon, size: 18, color: const Color(0xff4a7c59)),
+          const SizedBox(width: 6),
+          Text(
+            title,
+            style: const TextStyle(
+              fontFamily: 'Cairo',
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: Colors.black54,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(child: Divider(color: Colors.grey[300])),
+        ],
+      ),
+    );
+  }
+
   Future<void> updateForm() async {
     String userId = await FirebaseAuth.instance.currentUser?.uid ?? '';
 
@@ -155,34 +179,32 @@ class _DeanaFormPageState extends State<DeanaFormPage> {
 
     return Scaffold(
       appBar: AppBar(
-        iconTheme: const IconThemeData(
-          color: Colors.black, //change your color here
-        ),
+        iconTheme: const IconThemeData(color: Colors.black),
         centerTitle: true,
         backgroundColor: kMainColor,
+        elevation: 0,
         automaticallyImplyLeading: false,
-        leading:  IconButton(
-          onPressed: () {
-            Get.back();
-          },
-          icon: const Icon(
-            Icons.arrow_back_ios,
-            color: Colors.black,
-          ),
+        leading: IconButton(
+          onPressed: () => Get.back(),
+          icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
         ),
         title: Text(
           widget.title!,
           style: const TextStyle(
             color: Colors.black,
             fontFamily: 'Cairo',
+            fontWeight: FontWeight.bold,
           ),
         ),
       ),
       body: Form(
         key: _formKey,
         child: ListView(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
           children: [
             const VerticalSpace(2),
+            _sectionHeader(Icons.local_taxi, 'بيانات الدينة'),
+            const VerticalSpace(1),
             Row(
               children: [
                 Expanded(

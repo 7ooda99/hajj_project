@@ -14,18 +14,16 @@ import 'package:syrian_hajj_project/pages/airport_main_page.dart';
 import 'package:syrian_hajj_project/pages/deana_form_page.dart';
 
 import 'package:syrian_hajj_project/pages/form_page.dart';
-import 'package:syrian_hajj_project/pages/widgets/airport_frame_widget.dart';
+
 import 'package:intl/intl.dart';
-import 'package:syrian_hajj_project/pages/widgets/deana_airport_frame_widget.dart';
 import '../core/size_config.dart';
 
 class AirportPage extends StatefulWidget {
   final String? tripName;
   final String? tripid;
-  final String? role;
 
 
-  AirportPage({Key? key,  this.tripName, this.tripid,  this.role, }) : super(key: key);
+  AirportPage({Key? key,  this.tripName, this.tripid, }) : super(key: key);
 
   static String id = 'AirportPage';
 
@@ -37,44 +35,43 @@ class AirportPage extends StatefulWidget {
 
 
 class _AirportPageState extends State<AirportPage> {
-
   CollectionReference formInfo =
       FirebaseFirestore.instance.collection(kMessagesCollections);
   int selectedValue = 0;
   late Stream<QuerySnapshot> itemStream;
-   String tripType = 'باص';
+   String tripType = 'bus';
   @override
   void initState() {
     super.initState();
-    // itemStream = getStreamBasedOnSelection(selectedValue ); // Initialize with default stream
+    itemStream = getStreamBasedOnSelection(selectedValue ); // Initialize with default stream
   }
   // final String ttripid=
   final bool isTapped = false;
 
   @override
   Widget build(BuildContext context) {
-
+    print('the trip name is: ${widget.tripid}');
     SizeConfig().init(context);
 
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        leading:  IconButton(
-          onPressed: () {
-            Get.off(() => AirportMainPage());
-          },
-          icon: const Icon(
-            Icons.arrow_back_ios,
-            color: Colors.black,
-          ),
+        leading: IconButton(
+          onPressed: () => Get.off(() => AirportMainPage()),
+          icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
         ),
         backgroundColor: kMainColor,
+        elevation: 0,
         centerTitle: true,
-        title:  Text(
-          '${widget.tripName} رحلة ',
-          style: TextStyle(color: Colors.black, fontFamily: 'Cairo'),
+        title: Text(
+          'رحلة ${widget.tripName}',
+          style: const TextStyle(
+            color: Colors.black,
+            fontFamily: 'Cairo',
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+          ),
         ),
-
       ),
       body:
 
@@ -82,49 +79,63 @@ class _AirportPageState extends State<AirportPage> {
             children: [
                // if ( tripType == 'bus')
 
-              Padding(
-                padding: const EdgeInsets.all(8.0),
+              Container(
+                margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.grey[300]!),
+                ),
                 child: CustomSlidingSegmentedControl<int>(
-                  // innerPadding: 3,
-                  innerPadding: const EdgeInsets.all(5),
+                  innerPadding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
-                    color: Colors.grey[200],
-                    borderRadius: BorderRadius.circular(20),
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(14),
                   ),
                   fixedWidth: SizeConfig.defaultSize! * 18,
                   thumbDecoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
+                    color: kSecondaryColor,
+                    borderRadius: BorderRadius.circular(10),
+                    boxShadow: [
+                      BoxShadow(
+                        color: kSecondaryColor.withOpacity(0.4),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
-                   initialValue: 1,
-
+                  initialValue: 1,
                   children: const {
-                    0: Text('دينات', style: TextStyle(
-                      fontSize: 16,
-                      fontFamily: 'Cairo',
-                      color: Colors.black,
-                    ),),
-                    1: Text('باصات', style: TextStyle(
-                      fontSize: 16,
-                      fontFamily: 'Cairo',
-                      color: Colors.black,
-                    ),),
-
+                    0: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.local_taxi, size: 16),
+                        SizedBox(width: 4),
+                        Text('دينات', style: TextStyle(
+                          fontSize: 15,
+                          fontFamily: 'Cairo',
+                          fontWeight: FontWeight.w600,
+                        )),
+                      ],
+                    ),
+                    1: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.directions_bus, size: 16),
+                        SizedBox(width: 4),
+                        Text('باصات', style: TextStyle(
+                          fontSize: 15,
+                          fontFamily: 'Cairo',
+                          fontWeight: FontWeight.w600,
+                        )),
+                      ],
+                    ),
                   },
-                  // onValueChanged: (value) {
-                  //   setState(() {
-                  //     segmentedControlValue = value;
-                  //   });
-                  //   // Optional: Add logic to filter/sort your list based on the selected value
-                  // },
-                  // initialValue: segmentedControlValue,
                   onValueChanged: (int value) {
                     setState(() {
                       selectedValue = value;
-                      tripType = value == 0 ? 'دينه' : 'باص';
-                      // itemStream = getStreamBasedOnSelection(selectedValue);
+                      tripType = value == 0 ? 'deana' : 'bus';
                     });
-                    // fetchDataBasedOnSelection(value);
                   },
                 ),
               ),
@@ -133,7 +144,7 @@ class _AirportPageState extends State<AirportPage> {
           ),
 
 
-      floatingActionButton: widget.role != 'admin' ? buildSpeedDial() : SizedBox.shrink(),
+      floatingActionButton:buildSpeedDial(),
       // FloatingActionButton(
       //   onPressed: () {
       //     Get.to(
@@ -161,75 +172,18 @@ class _AirportPageState extends State<AirportPage> {
     print('current user id: ${FirebaseAuth.instance.currentUser?.uid}');
     print('the trip id is: ${widget.tripid}');
     return StreamBuilder<QuerySnapshot>(
-      stream: widget.role != 'admin' ?
-
-      FirebaseFirestore.instance
+      stream: FirebaseFirestore.instance
           .collection(kMessagesCollections)
           .where('userId', isEqualTo: userId)
           .where('travelId', isEqualTo: widget.tripid)
           .where('type', isEqualTo: tripType)
           .orderBy('time', descending: true)
-          .snapshots() :
-      FirebaseFirestore.instance
-          .collection(kMessagesCollections)
-          // .where('userId', isEqualTo: userId)
-          .where('travelId', isEqualTo: widget.tripid)
-          .where('type', isEqualTo: tripType)
-          .orderBy('time', descending: true)
-          .snapshots()
-      ,
+          .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           print('snapshot error: ${snapshot.error}');
           return Text("Error: ${snapshot.error}");
 
-        }
-        if (snapshot.data?.docs.isEmpty ?? true) {
-          // Display message when no data found
-          return const Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.warning_amber_rounded,
-                  size: 50,
-                  color: Colors.grey,
-                ),
-                Padding(
-                  padding: EdgeInsets.only(right: 16),
-                  child: Text(
-                    'لا توجد بيانات متوفرة ',
-                    textDirection: ui.TextDirection.rtl,
-
-                    style: TextStyle(
-
-                      fontFamily: 'Cairo',
-                      fontSize: 18,
-                      color: Colors.grey,
-                    ),
-                  ),
-
-
-                ),
-                Padding(
-                  padding: EdgeInsets.only(right: 16),
-                  child: Text(
-                    'اضغط على الزر + لإضافة باص او دينه جديدة',
-                    textDirection: ui.TextDirection.rtl,
-
-                    style: TextStyle(
-
-                      fontFamily: 'Cairo',
-                      fontSize: 18,
-                      color: Colors.grey,
-                    ),
-                  ),
-
-
-                ),
-              ],
-            ),
-          );
         }
         if (!snapshot.hasData) {
           return ModalProgressHUD(inAsyncCall: true,child: const Center(child: Text('جاري التحميل....'),),); // LodingView
@@ -241,31 +195,13 @@ class _AirportPageState extends State<AirportPage> {
                 onTap: () {
                   // print(tripid);
                   Get.to(
-                    () => snapshot.data!.docs[index]['type'] == 'باص'? FormPage(
-                      userRole: widget.role,
+                    () => FormPage(
                       gpsControllerText: snapshot.data!.docs[index]['gps'],
                       passengerControllerText:
                           snapshot.data!.docs[index]['passenger'],
                       hotelControllerText: snapshot.data!.docs[index]['hotel'],
                       groupControllerText: snapshot.data!.docs[index]['group'],
-                      notesControllerText: snapshot.data!.docs[index]['notes'],
-                      busNumberText: snapshot.data!.docs[index]['busNumber'],
-                      groupNameText: snapshot.data!.docs[index]['groupName'],
-
-                      tripid: snapshot.data!.docs[index].id,
-                      buttonText: 'تعديل',
-                      title: "التعديل على الرحلة الحالية",
-                      travelId: widget.tripid ?? '',
-                      transfareCompanyText: snapshot.data!.docs[index]['transfareCompany'],
-                    ) : DeanaFormPage(
-                      userRole: widget.role,
-                      gpsControllerText: snapshot.data!.docs[index]['gps'],
-                      passengerControllerText:
-                          snapshot.data!.docs[index]['passenger'],
-                      totalBagsText: snapshot.data!.docs[index]['totalBags'],
-                      hotelControllerText: snapshot.data!.docs[index]['hotel'],
-                      groupControllerText: snapshot.data!.docs[index]['group'],
-                      notesControllerText: snapshot.data!.docs[index]['notes'],
+                 notesControllerText: snapshot.data!.docs[index]['notes'],
                       busNumberText: snapshot.data!.docs[index]['busNumber'],
                       groupNameText: snapshot.data!.docs[index]['groupName'],
 
@@ -274,7 +210,6 @@ class _AirportPageState extends State<AirportPage> {
                       title: "التعديل على الرحلة الحالية",
                       travelId: widget.tripid ?? '',
                     ),
-
                   );
                 },
                 onLongPress: () {
@@ -283,114 +218,42 @@ class _AirportPageState extends State<AirportPage> {
                     builder: (_) => AlertDialog(
                       alignment: Alignment.center,
                       title: const Text(
-                        'خيارات الرحلة:',
+                        'حذف الرحلة:',
                         textDirection: ui.TextDirection.rtl,
                       ),
                       content: const Text(
-                        'ماذا تريد أن تفعل بالرحلة؟',
+                        'هل تريد بالفعل حذف الرحلة؟',
                         textDirection: ui.TextDirection.rtl,
                       ),
-                      actionsAlignment: MainAxisAlignment.spaceEvenly,
                       actions: [
                         TextButton(
                           onPressed: () {
                             Navigator.pop(context);
                           },
-                          child: const Text('إلغاء', style: TextStyle(color: Colors.black)),
+                          child: const Text('لا'),
                         ),
                         TextButton(
-                          onPressed: () async {
-                            final currentData = snapshot.data!.docs[index].data() as Map<String, dynamic>;
-
-                            // Set specific fields to empty values instead of removing
-                            currentData['busNumber'] = '';
-                            currentData['notes'] = '';
-                            currentData['passenger'] = '';
-                            currentData['group'] = '';
-                            currentData['hotel'] = '';
-
-                            // Update the timestamp for the new copy
-                            currentData['time'] = Timestamp.now();
-
-                            // Add the modified data as a new document
-                            await FirebaseFirestore.instance
+                          onPressed: () {
+                            FirebaseFirestore.instance
                                 .collection(kMessagesCollections)
-                                .add(currentData);
-
-                            showSnackBar(context, 'تم نسخ الرحلة بنجاح مع إفراغ البيانات المحددة');
-                            // Navigator.pop(context);
-                          },
-                          child: const Text('نسخ', style: TextStyle(color: Colors.blue)),
-                        ),
-                        TextButton(
-                          onPressed: () async {
-                            final docId = snapshot.data!.docs[index].id;
-
-                            await FirebaseFirestore.instance
-                                .collection(kMessagesCollections)
-                                .doc(docId)
-                                .update({'sent': true});
-
-                            showSnackBar(context, 'تم الإرسال بنجاح');
+                                .doc(snapshot.data!.docs[index].id)
+                                .delete();
+                            showSnackBar(
+                              context,
+                              'تم حذف الرحلة',
+                            );
                             Navigator.pop(context);
                           },
-                          child: const Text('تم الإرسال', style: TextStyle(color: Colors.green)),
-                        ),
-                        Directionality(
-                          textDirection: ui.TextDirection.rtl,
-                          child: TextButton(
-                            onPressed: () {
-                              Navigator.pop(context); // إغلاق الحوار الأول
-
-                              // عرض حوار التأكيد الثاني
-                              showDialog(
-                                context: context,
-                                builder: (_) => AlertDialog(
-                                  alignment: Alignment.center,
-                                  title: Directionality(
-                                    textDirection: ui.TextDirection.rtl,
-                                    child: Text(
-                                      'تأكيد الحذف',
-                                      // textDirection: TextDirection.rtl,
-                                    ),
-                                  ),
-                                  content: Text(
-                                    'هل أنت متأكد من أنك تريد حذف هذه الرحلة نهائيًا؟',
-                                    // textDirection: TextDirection.rtl,
-                                  ),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () {
-                                        Navigator.pop(context);
-                                      },
-                                      child: const Text('إلغاء', style: TextStyle(color: Colors.black)),
-                                    ),
-                                    TextButton(
-                                      onPressed: () async {
-                                        final docId = snapshot.data!.docs[index].id;
-                                        await FirebaseFirestore.instance
-                                            .collection(kMessagesCollections)
-                                            .doc(docId)
-                                            .delete();
-
-                                        Navigator.pop(context); // إغلاق الحوار الثاني
-                                        showSnackBar(context, 'تم حذف الرحلة');
-                                      },
-                                      child: const Text('تأكيد الحذف', style: TextStyle(color: Colors.red)),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                            child: const Text('حذف', style: TextStyle(color: Colors.red)),
+                          child: const Text(
+                            'نعم',
+                            style: TextStyle(color: Colors.red),
                           ),
                         ),
-
                       ],
                     ),
                   );
                 },
-                child: snapshot.data!.docs[index]['type'] == 'باص'? busCardDetails(snapshot.data!.docs[index], index) : deanaCardDetails(snapshot.data!.docs[index], index) ,
+                child: cardDetails(snapshot.data!.docs[index], tripType),
               );
             },
           );
@@ -399,41 +262,228 @@ class _AirportPageState extends State<AirportPage> {
     );
   }
 
-  Widget busCardDetails(DocumentSnapshot docment, int index) {
+  Widget cardDetails(DocumentSnapshot docment, String type) {
     Timestamp t = docment['time'];
     DateTime d = t.toDate();
-    // DateFormat.yMMMd().add_jm().format(d);
     String formattedDateTime =
-        DateFormat('yyyy/MM/dd - hh:mm  a').format(d);
-    return AirportFrameWidget(
-      userRole: widget.role,
-      index: index,
-      tripName: widget.tripName ?? '',
-travelId: widget.tripid ?? '',
-      hotelName: docment['gps'].toString(),
-      group: docment['groupName'],
-      passengerNo: docment['passenger'].toString(),
-      gpsNo: docment['busNumber'].toString(),
-      time: formattedDateTime,
-      isSent: docment['sent'] ?? false,
+        DateFormat('yyyy/MM/dd  -  hh:mm a').format(d);
+    if (type == 'bus') {
+      return _buildBusCard(docment, formattedDateTime);
+    } else {
+      return _buildDeanaCard(docment, formattedDateTime);
+    }
+  }
+
+  Widget _buildBusCard(DocumentSnapshot doc, String time) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Column(
+          children: [
+            Container(
+              color: kSecondaryColor,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.directions_bus, color: Colors.white, size: 18),
+                      const SizedBox(width: 6),
+                      Text(
+                        'باص رقم: ${doc['busNumber']}',
+                        style: const TextStyle(
+                          fontFamily: 'Cairo',
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Text(
+                    doc['groupName'] ?? '',
+                    style: const TextStyle(
+                      fontFamily: 'Cairo',
+                      color: Colors.white70,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _infoTile(Icons.hotel, 'الفندق', doc['gps'].toString()),
+                  ),
+                  Container(width: 1, height: 50, color: Colors.grey[200]),
+                  Expanded(
+                    child: _infoTile(Icons.people, 'الحجاج', doc['passenger'].toString()),
+                  ),
+                  Container(width: 1, height: 50, color: Colors.grey[200]),
+                  Expanded(
+                    child: _infoTile(Icons.person, 'السائق', doc['group'] ?? ''),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              color: Colors.grey[50],
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              child: Row(
+                children: [
+                  const Icon(Icons.access_time, size: 12, color: Colors.grey),
+                  const SizedBox(width: 4),
+                  Text(
+                    time,
+                    style: const TextStyle(fontSize: 11, color: Colors.grey, fontFamily: 'Cairo'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
-  Widget deanaCardDetails(DocumentSnapshot docment, int index) {
-    Timestamp t = docment['time'];
-    DateTime d = t.toDate();
-    // DateFormat.yMMMd().add_jm().format(d);
-    String formattedDateTime =
-    DateFormat('yyyy/MM/dd - hh:mm  a').format(d);
-    return DeanaAirportFrameWidget(
-      userRole: widget.role,
-      travelId: widget.tripid ?? '',
-      tripName: widget.tripName ?? '',
-      index: index,
-      hotelName: docment['gps'].toString(),
-      group: docment['groupName'],
-      passengerNo: docment['groupName'].toString(),
-      gpsNo: docment['totalBags'].toString(),
-      time: formattedDateTime,
+
+  Widget _buildDeanaCard(DocumentSnapshot doc, String time) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Column(
+          children: [
+            Container(
+              color: const Color(0xff4a7c59),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.local_taxi, color: Colors.white, size: 18),
+                      const SizedBox(width: 6),
+                      const Text(
+                        'دينة',
+                        style: TextStyle(
+                          fontFamily: 'Cairo',
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Text(
+                    doc['groupName'] ?? '',
+                    style: const TextStyle(
+                      fontFamily: 'Cairo',
+                      color: Colors.white70,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _infoTile(Icons.person_outline, 'السائق', doc['group'] ?? ''),
+                  ),
+                  Container(width: 1, height: 50, color: Colors.grey[200]),
+                  Expanded(
+                    child: _infoTile(Icons.phone_android, 'الجوال', doc['hotel'].toString()),
+                  ),
+                ],
+              ),
+            ),
+            if ((doc['notes'] ?? '').toString().isNotEmpty)
+              Container(
+                width: double.infinity,
+                color: Colors.amber[50],
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.notes, size: 14, color: Colors.amber),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        doc['notes'].toString(),
+                        style: const TextStyle(fontSize: 11, fontFamily: 'Cairo'),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            Container(
+              color: Colors.grey[50],
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              child: Row(
+                children: [
+                  const Icon(Icons.access_time, size: 12, color: Colors.grey),
+                  const SizedBox(width: 4),
+                  Text(
+                    time,
+                    style: const TextStyle(fontSize: 11, color: Colors.grey, fontFamily: 'Cairo'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _infoTile(IconData icon, String label, String value) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(icon, size: 18, color: kSecondaryColor),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: TextStyle(fontSize: 10, color: Colors.grey[500], fontFamily: 'Cairo'),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
+          textAlign: TextAlign.center,
+        ),
+      ],
     );
   }
 
@@ -499,7 +549,16 @@ travelId: widget.tripid ?? '',
       ],
     );
   }
-
+  Stream<QuerySnapshot> getStreamBasedOnSelection(int value) {
+    String userId = FirebaseAuth.instance.currentUser?.uid ?? '';
+    String typeFilter = value == 0 ? 'deana' : 'bus';
+    return FirebaseFirestore.instance
+        .collection(kMessagesCollections)
+        .where('userId', isEqualTo: userId)
+        .where('type', isEqualTo: typeFilter)
+        .orderBy('time', descending: true)
+        .snapshots();
+  }
 }
 
 
