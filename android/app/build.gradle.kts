@@ -39,7 +39,7 @@ android {
 
     defaultConfig {
         applicationId = "com.syrian_hajj_project"
-        minSdk = 23
+        minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

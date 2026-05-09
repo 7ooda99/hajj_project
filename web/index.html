@@ -1,104 +1,1429 @@
 <!DOCTYPE html>
-<html>
+<html lang="ar" dir="rtl">
 <head>
-  <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>جدول رحلات الحج</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js" integrity="sha384-iU8HYtnGQ8Cy4zl7gbNMOhsDTTKX02BTXptVP/vqAWIaTfM7isw76iyZCsjL2eVi" crossorigin="anonymous"></script>
 
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
+<!-- Firebase -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getFirestore, collection, getDocs, query, where, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
+  const firebaseConfig = {
+    apiKey: "AIzaSyAp7VmGvH2RsG8s8UUYIM-yCaOeG86CPEM",
+    authDomain: "syrian-hajj.firebaseapp.com",
+    projectId: "syrian-hajj",
+    storageBucket: "syrian-hajj.appspot.com",
+    messagingSenderId: "242504343313",
+    appId: "1:242504343313:web:763fe06d69da5593ea36b0",
+    measurementId: "G-17VJVCKPV7"
+  };
 
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
-  -->
-  <base href="$FLUTTER_BASE_HREF">
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
 
-  <meta charset="UTF-8">
-  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  console.log("Firebase connected to project: syrian-hajj");
 
-  <!-- iOS meta tags & icons -->
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="syrian_hajj_project">
-  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+  // Static user ID
+  const STATIC_UID = "UPS9jfWuqCgFy6xV0ayd0YtgeaV2";
 
-  <!-- Favicon -->
-  <link rel="icon" type="image/png" href="favicon.png"/>
+  // ===== FIREBASE VIEW LOGIC =====
+  let allTrips = [];
+  let fbLoaded = false;
+  let unsubscribe = null;
+  let knownTripIds = null; // null = first snapshot not done yet
 
-  <title>syrian_hajj_project</title>
-  <link rel="manifest" href="manifest.json">
-</head>
-<body>
-  <!-- This script installs service_worker.js to provide PWA functionality to
-       application. For more information, see:
-       https://developers.google.com/web/fundamentals/primers/service-workers -->
-  <script>
-    var serviceWorkerVersion = null;
-    var scriptLoaded = false;
-    function loadMainDartJs() {
-      if (scriptLoaded) {
-        return;
-      }
-      scriptLoaded = true;
-      var scriptTag = document.createElement('script');
-      scriptTag.src = 'main.dart.js';
-      scriptTag.type = 'application/javascript';
-      document.body.append(scriptTag);
+  window.testNotification = async function() {
+    const status = document.getElementById('testNotifBtn');
+    status.textContent = '⏳ جاري...';
+
+    if (!('Notification' in window)) {
+      alert('المتصفح لا يدعم الإشعارات');
+      status.textContent = '🔔 اختبار الإشعار';
+      return;
     }
 
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') {
+      alert('الإذن مرفوض: ' + perm);
+      status.textContent = '🔔 اختبار الإشعار';
+      return;
+    }
+
+    // Try SW with 2s timeout
     if ('serviceWorker' in navigator) {
-      // Service workers are supported. Use them.
-      window.addEventListener('load', function () {
-        // Wait for registration to finish before dropping the <script> tag.
-        // Otherwise, the browser will load the script multiple times,
-        // potentially different versions.
-        var serviceWorkerUrl = 'flutter_service_worker.js?v=' + serviceWorkerVersion;
-        navigator.serviceWorker.register(serviceWorkerUrl)
-          .then((reg) => {
-            function waitForActivation(serviceWorker) {
-              serviceWorker.addEventListener('statechange', () => {
-                if (serviceWorker.state == 'activated') {
-                  console.log('Installed new service worker.');
-                  loadMainDartJs();
-                }
-              });
-            }
-            if (!reg.active && (reg.installing || reg.waiting)) {
-              // No active web worker and we have installed or are installing
-              // one for the first time. Simply wait for it to activate.
-              waitForActivation(reg.installing || reg.waiting);
-            } else if (!reg.active.scriptURL.endsWith(serviceWorkerVersion)) {
-              // When the app updates the serviceWorkerVersion changes, so we
-              // need to ask the service worker to update.
-              console.log('New service worker available.');
-              reg.update();
-              waitForActivation(reg.installing);
-            } else {
-              // Existing service worker is still good.
-              console.log('Loading app from service worker.');
-              loadMainDartJs();
+      try {
+        const reg = await swReady(5000);
+        await reg.showNotification('اختبار ✅', { body: 'الإشعارات تعمل!', dir: 'rtl' });
+        status.textContent = '✅ SW';
+        setTimeout(() => status.textContent = '🔔 اختبار الإشعار', 3000);
+        return;
+      } catch(e) {}
+    }
+
+    // Fallback: direct Notification
+    try {
+      new Notification('اختبار ✅', { body: 'الإشعارات تعمل!', dir: 'rtl' });
+      status.textContent = '✅ مباشر';
+    } catch(e) {
+      status.textContent = '❌ فشل: ' + e.message;
+    }
+    setTimeout(() => status.textContent = '🔔 اختبار الإشعار', 3000);
+  };
+
+  // Register SW immediately on page load
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw-notify.js').catch(() => {});
+  }
+
+  async function requestNotificationPermission() {
+    if (!('Notification' in window)) return;
+    if (Notification.permission === 'default') {
+      await Notification.requestPermission();
+    }
+  }
+
+  function swReady(timeoutMs) {
+    return Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('SW timeout')), timeoutMs))
+    ]);
+  }
+
+  async function sendSystemNotification(title, body) {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    if ('serviceWorker' in navigator) {
+      try {
+        const reg = await swReady(5000);
+        await reg.showNotification(title, { body, icon: '/icons/Icon-192.png', dir: 'rtl', lang: 'ar' });
+        return;
+      } catch(e) {}
+    }
+    try { new Notification(title, { body, icon: '/icons/Icon-192.png', dir: 'rtl', lang: 'ar' }); } catch(e) {}
+  }
+
+  function showToast(msg) {
+    const el = document.createElement('div');
+    el.textContent = msg;
+    el.style.cssText = `
+      background:#0d5c2e;color:white;padding:14px 24px;border-radius:12px;
+      font-size:16px;font-family:inherit;direction:rtl;text-align:right;
+      box-shadow:0 4px 20px rgba(0,0,0,0.4);pointer-events:auto;
+      animation:slideDown .3s ease;max-width:90vw;
+    `;
+    const container = document.getElementById('toastContainer');
+    if (container) container.appendChild(el);
+    setTimeout(() => { el.style.opacity='0'; el.style.transition='opacity .4s'; setTimeout(()=>el.remove(),400); }, 4000);
+  }
+
+  function showTripNotification(trip) {
+    const tripName = trip.travleName || trip.travelName || trip.name || trip.travelId || 'رحلة جديدة';
+    showToast('✈️ رحلة جديدة أُضيفت: ' + tripName);
+    sendSystemNotification('رحلة جديدة أُضيفت ✈️', tripName);
+  }
+
+  window.loadFirebaseData = function() {
+    if (fbLoaded) return;
+    const user = { uid: STATIC_UID };
+
+    requestNotificationPermission();
+
+    const tryLoad = (useFilter) => {
+      const tripsQuery = useFilter
+        ? query(collection(db, 'travlesInfo'), where('userId', '==', user.uid))
+        : collection(db, 'travlesInfo');
+
+      unsubscribe = onSnapshot(tripsQuery, async (tripsSnap) => {
+        const incomingIds = new Set(tripsSnap.docs.map(d => d.id));
+
+        if (knownTripIds === null) {
+          // First snapshot — just record existing IDs, no notification
+          knownTripIds = incomingIds;
+        } else {
+          // Subsequent snapshots — find truly new IDs
+          incomingIds.forEach(id => {
+            if (!knownTripIds.has(id)) {
+              const doc = tripsSnap.docs.find(d => d.id === id);
+              if (doc) showTripNotification({ id: doc.id, ...doc.data() });
             }
           });
+          knownTripIds = incomingIds;
+        }
 
-        // If service worker doesn't succeed in a reasonable amount of time,
-        // fallback to plaint <script> tag.
-        setTimeout(() => {
-          if (!scriptLoaded) {
-            console.warn(
-              'Failed to load app from service worker. Falling back to plain <script> tag.',
-            );
-            loadMainDartJs();
-          }
-        }, 4000);
+        let allForms = [];
+        try {
+          const formsQuery = useFilter
+            ? query(collection(db, 'formInfo'), where('userId', '==', user.uid))
+            : collection(db, 'formInfo');
+          const formsSnap = await getDocs(formsQuery);
+          allForms = formsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        } catch(e) { /* formInfo denied — show trips without forms */ }
+
+        allTrips = tripsSnap.docs.map(d => {
+          const trip = { id: d.id, ...d.data() };
+          trip.forms = allForms.filter(f => f.travelId === trip.travelId);
+          return trip;
+        });
+
+        allTrips.sort((a, b) => (b.time?.seconds||0) - (a.time?.seconds||0));
+        fbLoaded = true;
+        document.getElementById('fbLoading').style.display = 'none';
+        renderFbStats();
+        window.renderTrips(allTrips);
+      }, (err) => {
+        if (!useFilter) {
+          tryLoad(true);
+        } else {
+          document.getElementById('fbLoading').innerHTML =
+            `❌ خطأ في الصلاحيات<br><small style="color:#94a3b8">${err.message}</small><br><br>
+             <button onclick="fbLoaded=false;window.loadFirebaseData()" style="padding:8px 20px;background:#0d5c2e;color:white;border:none;border-radius:8px;cursor:pointer;font-family:inherit;">إعادة المحاولة</button>`;
+        }
       });
-    } else {
-      // Service workers not supported. Just drop the <script> tag.
-      loadMainDartJs();
+    };
+
+    tryLoad(false);
+
+    // Listen for new formInfo (buses) separately
+    let knownFormIds = null;
+    let unsubscribeForms = null;
+    const formsListenQuery = collection(db, 'formInfo');
+    unsubscribeForms = onSnapshot(formsListenQuery, (formsSnap) => {
+      const incomingIds = new Set(formsSnap.docs.map(d => d.id));
+      if (knownFormIds === null) {
+        knownFormIds = incomingIds;
+      } else {
+        incomingIds.forEach(id => {
+          if (!knownFormIds.has(id)) {
+            const d = formsSnap.docs.find(x => x.id === id);
+            if (d) {
+              const f = d.data();
+              const label = f.busNumber ? '🚌 باص جديد رقم: ' + f.busNumber
+                          : f.groupName ? '👥 مجموعة جديدة: ' + f.groupName
+                          : '📋 استمارة جديدة أُضيفت';
+              showToast(label);
+              sendSystemNotification('إضافة جديدة', label);
+            }
+          }
+        });
+        knownFormIds = incomingIds;
+      }
+    }, () => { /* ignore permission errors on formInfo */ });
+  };
+
+  let currentDay = 'all';
+
+  function getDateKey(trip) {
+    if (!trip.time) return 'بدون تاريخ';
+    const d = new Date(trip.time.seconds * 1000);
+    return d.toISOString().split('T')[0];
+  }
+
+  function formatDayLabel(key) {
+    if (key === 'بدون تاريخ') return key;
+    const d = new Date(key);
+    return d.toLocaleDateString('ar-EG', { weekday: 'short', month: 'short', day: 'numeric' });
+  }
+
+  function renderDayTabs(trips) {
+    const days = {};
+    trips.forEach(t => {
+      const k = getDateKey(t);
+      days[k] = (days[k] || 0) + 1;
+    });
+    const sorted = Object.keys(days).sort();
+    const tabsEl = document.getElementById('fbDayTabs');
+    tabsEl.innerHTML = [
+      `<button class="fb-day-tab ${currentDay==='all'?'active':''}" onclick="switchFbDay('all')">الكل (${trips.length})</button>`,
+      ...sorted.map(k =>
+        `<button class="fb-day-tab ${currentDay===k?'active':''}" onclick="switchFbDay('${k}')">${formatDayLabel(k)} (${days[k]})</button>`
+      )
+    ].join('');
+  }
+
+  window.switchFbDay = function(day) {
+    currentDay = day;
+    document.querySelectorAll('.fb-day-tab').forEach(b => b.classList.remove('active'));
+    event.target.classList.add('active');
+    const filtered = day === 'all' ? allTrips : allTrips.filter(t => getDateKey(t) === day);
+    window.renderTrips(filtered);
+  };
+
+  function renderFbStats() {
+    const totalForms = allTrips.reduce((s, t) => s + t.forms.length, 0);
+    const users = new Set(allTrips.map(t => t.userId).filter(Boolean)).size;
+    document.getElementById('fbStatsBar').innerHTML = `
+      <div class="fb-stat-chip">&#9992; ${allTrips.length} رحلة</div>
+      <div class="fb-stat-chip">&#128203; ${totalForms} استمارة</div>
+      <div class="fb-stat-chip">&#128101; ${users} مستخدم</div>
+    `;
+    renderDayTabs(allTrips);
+  }
+
+  window.renderTrips = function(trips) {
+    const container = document.getElementById('fbTrips');
+    if (!trips.length) {
+      container.innerHTML = '<div class="fb-no-results">&#128269; لا توجد نتائج</div>';
+      return;
     }
-  </script>
+    container.innerHTML = trips.map((trip, i) => `
+      <div class="fb-trip-card" id="fbCard_${i}">
+        <div class="fb-trip-header" onclick="toggleFbCard(${i})">
+          <div>
+            <div class="fb-trip-title">&#9992; ${trip.travleName || 'رحلة بدون اسم'}</div>
+            <div class="fb-trip-meta">&#128100; ${trip.userName || '—'} &nbsp;|&nbsp; &#128197; ${trip.time ? new Date(trip.time.seconds*1000).toLocaleDateString('ar-EG') + ' • ' + new Date(trip.time.seconds*1000).toLocaleTimeString('ar-EG', {hour: '2-digit', minute: '2-digit'}) : '—'}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span class="fb-trip-badge">&#128203; ${trip.forms.length} استمارة</span>
+            <span class="fb-trip-chevron">&#8964;</span>
+          </div>
+        </div>
+        <div class="fb-trip-body">
+          ${trip.forms.length === 0
+            ? '<div class="fb-empty">لا توجد استمارات لهذه الرحلة</div>'
+            : `<div class="fb-forms-grid">${trip.forms.map(f => renderFormCard(f)).join('')}</div>`
+          }
+        </div>
+      </div>
+    `).join('');
+  };
+
+  function renderFormCard(f) {
+    const rows = [];
+    if (f.groupName)        rows.push(['&#127988;','اسم المجموعة', f.groupName]);
+    if (f.group)            rows.push(['&#129489;','التكتل', f.group]);
+    if (f.hotel)            rows.push(['&#127963;','الفندق', f.hotel]);
+    if (f.busNumber)        rows.push(['&#128652;','رقم الحافلة', f.busNumber]);
+    if (f.transfareCompany) rows.push(['&#128666;','شركة النقل', f.transfareCompany]);
+    if (f.passenger)        rows.push(['&#128101;','الركاب', f.passenger]);
+    if (f.totalBags)        rows.push(['&#129517;','عدد الحقائب', f.totalBags]);
+    if (f.gps)              rows.push(['&#128205;','GPS', f.gps]);
+    if (f.notes)            rows.push(['&#128221;','ملاحظات', f.notes]);
+    if (!rows.length) return '<div class="fb-form-card" style="color:#94a3b8;font-size:13px">بيانات غير مكتملة</div>';
+    const timeStr = f.createdAt?.seconds
+      ? new Date(f.createdAt.seconds * 1000).toLocaleTimeString('ar-EG', {hour:'2-digit', minute:'2-digit'})
+      : (f.time?.seconds ? new Date(f.time.seconds * 1000).toLocaleTimeString('ar-EG', {hour:'2-digit', minute:'2-digit'}) : null);
+    return `
+      <div class="fb-form-card">
+        ${timeStr ? `<div style="font-size:11px;color:#94a3b8;text-align:left;margin-bottom:8px;direction:ltr">🕐 ${timeStr}</div>` : ''}
+        ${rows.map(([icon, label, val]) => `
+          <div class="fb-form-row">
+            <span class="fb-form-icon">${icon}</span>
+            <div><div class="fb-form-label">${label}</div><div class="fb-form-val">${val}</div></div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  window.filterTrips = function() {
+    const q = document.getElementById('fbSearch').value.trim().toLowerCase();
+    if (!q) { window.renderTrips(allTrips); return; }
+    const filtered = allTrips.filter(t =>
+      (t.travleName||'').toLowerCase().includes(q) ||
+      (t.userName||'').toLowerCase().includes(q) ||
+      t.forms.some(f =>
+        (f.groupName||'').toLowerCase().includes(q) ||
+        (f.group||'').toLowerCase().includes(q) ||
+        (f.hotel||'').toLowerCase().includes(q)
+      )
+    );
+    window.renderTrips(filtered);
+  };
+</script>
+<style>
+@keyframes slideDown { from { opacity:0; transform:translateY(-20px); } to { opacity:1; transform:translateY(0); } }
+:root { color-scheme: light; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+  background: #f0f4f8;
+  color: #1a2332;
+  line-height: 1.6;
+  padding: 0;
+}
+
+/* Header */
+.header {
+  background: linear-gradient(135deg, #0d5c2e 0%, #1a8b4c 50%, #0d5c2e 100%);
+  color: white;
+  padding: 28px 24px 20px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+.header::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 5 L35 20 L30 15 L25 20 Z' fill='rgba(255,255,255,0.04)'/%3E%3C/svg%3E") repeat;
+}
+.header h1 { font-size: 26px; font-weight: 700; position: relative; margin-bottom: 4px; }
+.header .sub { font-size: 14px; opacity: 0.85; position: relative; }
+
+/* View switcher */
+.view-switch {
+  display: flex;
+  justify-content: center;
+  gap: 0;
+  background: white;
+  padding: 14px 20px;
+  border-bottom: 1px solid #e2e8f0;
+}
+.view-btn {
+  padding: 10px 28px;
+  border: 2px solid #0d5c2e;
+  background: white;
+  color: #0d5c2e;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.view-btn:first-child { border-radius: 0 8px 8px 0; }
+.view-btn:last-child { border-radius: 8px 0 0 8px; border-right: none; }
+.view-btn:not(:first-child):not(:last-child) { border-right: none; border-radius: 0; }
+.view-btn.active {
+  background: #0d5c2e;
+  color: white;
+}
+.view-btn:hover:not(.active) { background: #f0fdf4; }
+
+/* ===== DASHBOARD ===== */
+.dashboard { display: none; padding: 20px; max-width: 1200px; margin: 0 auto; }
+.dashboard.visible { display: block; }
+
+.dash-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #0d5c2e;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid #dcfce7;
+}
+
+/* Big stats row */
+.big-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.big-stat {
+  background: white;
+  border-radius: 14px;
+  padding: 18px 16px;
+  text-align: center;
+  border: 1px solid #e8edf2;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  position: relative;
+  overflow: hidden;
+}
+.big-stat .icon {
+  font-size: 28px;
+  margin-bottom: 6px;
+}
+.big-stat .val {
+  font-size: 28px;
+  font-weight: 800;
+  color: #0d5c2e;
+  line-height: 1.2;
+}
+.big-stat .label {
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 4px;
+}
+.big-stat.highlight {
+  background: linear-gradient(135deg, #0d5c2e, #1a8b4c);
+  color: white;
+}
+.big-stat.highlight .val { color: white; }
+.big-stat.highlight .label { color: rgba(255,255,255,0.8); }
+
+/* Dashboard sections grid */
+.dash-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.dash-card {
+  background: white;
+  border-radius: 14px;
+  padding: 18px;
+  border: 1px solid #e8edf2;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+}
+.dash-card.full { grid-column: 1 / -1; }
+.dash-card h3 {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1a2332;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dash-card h3 .emoji { font-size: 20px; }
+
+/* Chart containers */
+.chart-wrap { position: relative; height: 220px; }
+.chart-wrap.tall { height: 280px; }
+
+/* Insight cards */
+.insights-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+.insight {
+  background: #f8fafc;
+  border-radius: 10px;
+  padding: 14px;
+  border-right: 4px solid #0d5c2e;
+}
+.insight .title {
+  font-size: 11px;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+.insight .value {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0d5c2e;
+}
+.insight .detail {
+  font-size: 12px;
+  color: #475569;
+  margin-top: 2px;
+}
+
+/* Rank list */
+.rank-list { list-style: none; }
+.rank-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+.rank-item:last-child { border-bottom: none; }
+.rank-num {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #f0fdf4;
+  color: #0d5c2e;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.rank-item:nth-child(1) .rank-num { background: #fef3c7; color: #92400e; }
+.rank-item:nth-child(2) .rank-num { background: #e2e8f0; color: #475569; }
+.rank-item:nth-child(3) .rank-num { background: #fed7aa; color: #9a3412; }
+.rank-name { flex: 1; font-size: 13px; color: #334155; }
+.rank-val {
+  background: #dbeafe;
+  color: #1e40af;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* Progress bar */
+.bar-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.bar-label { font-size: 12px; color: #475569; min-width: 100px; text-align: left; }
+.bar-track {
+  flex: 1;
+  height: 22px;
+  background: #f1f5f9;
+  border-radius: 11px;
+  overflow: hidden;
+  position: relative;
+}
+.bar-fill {
+  height: 100%;
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: white;
+  min-width: 30px;
+  transition: width 0.6s ease;
+}
+.bar-count { font-size: 12px; color: #64748b; min-width: 35px; }
+
+/* ===== FLIGHTS VIEW ===== */
+.flights-view { display: none; }
+.flights-view.visible { display: block; }
+
+/* ===== FIREBASE VIEW ===== */
+.firebase-view { display: none; }
+.firebase-view.visible { display: block; }
+
+.fb-header {
+  background: white;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e2e8f0;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.fb-search-wrap { margin-bottom: 12px; }
+.fb-search {
+  width: 100%;
+  padding: 10px 16px;
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.fb-search:focus { border-color: #0d5c2e; }
+
+.fb-day-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 4px 0 10px;
+  scrollbar-width: none;
+}
+.fb-day-tabs::-webkit-scrollbar { display: none; }
+.fb-day-tab {
+  flex-shrink: 0;
+  padding: 7px 16px;
+  border: 2px solid #0d5c2e;
+  border-radius: 20px;
+  background: white;
+  color: #0d5c2e;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.fb-day-tab.active { background: #0d5c2e; color: white; }
+.fb-day-tab:hover:not(.active) { background: #f0fdf4; }
+
+.fb-stats-bar {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.fb-stat-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 20px;
+  padding: 4px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #0d5c2e;
+}
+
+.fb-loading {
+  text-align: center;
+  padding: 60px 20px;
+  color: #64748b;
+  font-size: 16px;
+}
+
+.fb-trips {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+  display: grid;
+  gap: 16px;
+}
+
+.fb-trip-card {
+  background: white;
+  border-radius: 14px;
+  border: 1px solid #e8edf2;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  overflow: hidden;
+}
+.fb-trip-header {
+  background: linear-gradient(135deg, #0d5c2e, #1a8b4c);
+  color: white;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+}
+.fb-trip-title { font-size: 16px; font-weight: 700; }
+.fb-trip-meta { font-size: 12px; opacity: 0.85; margin-top: 2px; }
+.fb-trip-badge {
+  background: rgba(255,255,255,0.2);
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.fb-trip-chevron { font-size: 18px; transition: transform 0.3s; }
+.fb-trip-card.open .fb-trip-chevron { transform: rotate(180deg); }
+
+.fb-trip-body { display: none; padding: 16px; }
+.fb-trip-card.open .fb-trip-body { display: block; }
+
+.fb-forms-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+.fb-form-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 14px;
+}
+.fb-form-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+.fb-form-row:last-child { margin-bottom: 0; }
+.fb-form-icon { font-size: 16px; flex-shrink: 0; }
+.fb-form-label { color: #64748b; font-size: 11px; }
+.fb-form-val { color: #1a2332; font-weight: 600; }
+.fb-empty {
+  text-align: center;
+  padding: 30px;
+  color: #94a3b8;
+  font-size: 14px;
+}
+.fb-no-results {
+  text-align: center;
+  padding: 60px 20px;
+  color: #94a3b8;
+  font-size: 15px;
+}
+
+/* Stats bar */
+.stats-bar {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 16px 20px;
+  background: white;
+  border-bottom: 1px solid #e2e8f0;
+}
+.stat-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 18px;
+  text-align: center;
+  min-width: 120px;
+}
+.stat-box .num { font-size: 22px; font-weight: 700; color: #0d5c2e; }
+.stat-box .lbl { font-size: 11px; color: #64748b; margin-top: 2px; }
+
+/* Day tabs */
+.tabs-wrap {
+  background: white;
+  padding: 12px 16px 0;
+  border-bottom: 2px solid #e2e8f0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.tabs {
+  display: flex;
+  gap: 4px;
+  min-width: max-content;
+}
+.tab {
+  padding: 8px 14px;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  transition: all 0.2s;
+  white-space: nowrap;
+  border-radius: 8px 8px 0 0;
+}
+.tab:hover { background: #f1f5f9; color: #0d5c2e; }
+.tab.active {
+  color: #0d5c2e;
+  font-weight: 700;
+  border-bottom-color: #0d5c2e;
+  background: #f0fdf4;
+}
+.tab .badge {
+  display: inline-block;
+  background: #e2e8f0;
+  color: #475569;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  margin-right: 4px;
+}
+.tab.active .badge { background: #0d5c2e; color: white; }
+
+/* Day summary */
+.day-summary {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+  padding: 14px 20px;
+  background: #f0fdf4;
+  border-bottom: 1px solid #dcfce7;
+}
+.day-stat { font-size: 13px; color: #166534; }
+.day-stat strong { font-weight: 700; }
+
+/* Content area */
+.content { padding: 16px; max-width: 1200px; margin: 0 auto; }
+
+/* Flight card */
+.flight-card {
+  background: white;
+  border-radius: 14px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06), 0 2px 12px rgba(0,0,0,0.04);
+  margin-bottom: 16px;
+  overflow: hidden;
+  border: 1px solid #e8edf2;
+  transition: box-shadow 0.2s;
+}
+.flight-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+
+.flight-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  background: linear-gradient(135deg, #0d5c2e, #1a8b4c);
+  color: white;
+  flex-wrap: wrap;
+}
+.flight-num {
+  background: rgba(255,255,255,0.2);
+  padding: 4px 12px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 1px;
+}
+.flight-route {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  min-width: 200px;
+}
+.flight-route .airport {
+  background: rgba(255,255,255,0.15);
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+.flight-route .arrow { font-size: 18px; opacity: 0.7; }
+.flight-times {
+  display: flex;
+  gap: 16px;
+  font-size: 13px;
+}
+.flight-times .time-block { text-align: center; }
+.flight-times .time-val { font-size: 18px; font-weight: 700; }
+.flight-times .time-lbl { font-size: 10px; opacity: 0.75; }
+
+/* Flight meta */
+.flight-meta {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 18px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e8edf2;
+}
+.meta-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #475569;
+  background: white;
+  border: 1px solid #e2e8f0;
+  padding: 3px 10px;
+  border-radius: 20px;
+}
+.meta-chip .mv { font-weight: 700; color: #0d5c2e; }
+
+/* Groups table */
+.groups-section { padding: 0; }
+.groups-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.groups-table thead { background: #f1f5f9; }
+.groups-table th {
+  padding: 8px 12px;
+  font-weight: 600;
+  color: #475569;
+  text-align: right;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  border-bottom: 2px solid #e2e8f0;
+}
+.groups-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #334155;
+}
+.groups-table tbody tr:hover { background: #f8fafc; }
+.groups-table tbody tr:last-child td { border-bottom: none; }
+.group-name { font-weight: 600; color: #1a2332; }
+.group-count {
+  display: inline-block;
+  background: #dbeafe;
+  color: #1e40af;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 12px;
+  min-width: 30px;
+  text-align: center;
+}
+.taktol-badge {
+  display: inline-block;
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.hotel-name { font-size: 12px; color: #64748b; }
+.mutawif-name { font-size: 11px; color: #94a3b8; }
+
+/* Toggle groups */
+.toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px;
+  border: none;
+  background: #f8fafc;
+  color: #64748b;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  transition: background 0.2s;
+}
+.toggle-btn:hover { background: #f1f5f9; }
+.toggle-btn .chevron { transition: transform 0.3s; display: inline-block; }
+.toggle-btn.open .chevron { transform: rotate(180deg); }
+.groups-container {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.4s ease;
+}
+.groups-container.open { max-height: 2000px; }
+
+/* Responsive */
+@media (max-width: 700px) {
+  .header h1 { font-size: 20px; }
+  .big-stats { grid-template-columns: repeat(2, 1fr); }
+  .dash-grid { grid-template-columns: 1fr; }
+  .stats-bar { gap: 8px; padding: 12px; }
+  .stat-box { min-width: 90px; padding: 8px 12px; }
+  .stat-box .num { font-size: 18px; }
+  .flight-header { padding: 10px 12px; }
+  .flight-route { font-size: 11px; }
+  .groups-table { font-size: 11px; }
+  .groups-table th, .groups-table td { padding: 6px 8px; }
+  .content { padding: 10px; }
+  .view-btn { padding: 8px 18px; font-size: 13px; }
+}
+
+@media print {
+  .tabs-wrap, .view-switch { display: none; }
+  .flight-card { break-inside: avoid; }
+  .groups-container { max-height: none !important; }
+}
+</style>
+</head>
+<body>
+
+<!-- Toast Notification Container -->
+<div id="toastContainer" style="position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:99999;display:flex;flex-direction:column;align-items:center;gap:10px;pointer-events:none;"></div>
+
+
+
+
+<div class="header">
+  <h1>&#9992; جدول رحلات الحج</h1>
+  <div class="sub">الموسم ١٤٤٧ هـ &mdash; ٩ إلى ٢١ مايو ٢٠٢٦</div>
+</div>
+
+<!-- View Switcher -->
+<div class="view-switch">
+  <button class="view-btn active" onclick="switchView('dashboard', this)">&#128202; الإحصائيات العامة</button>
+  <button class="view-btn" onclick="switchView('flights', this)">&#9992; الرحلات اليومية</button>
+  <button class="view-btn" onclick="switchView('firebase', this)">تفويج مطار جدة</button>
+</div>
+
+<!-- ===== DASHBOARD VIEW ===== -->
+<div class="dashboard visible" id="dashboardView">
+
+  <!-- Big stats -->
+  <div class="big-stats" id="bigStats"></div>
+
+  <!-- Insights row -->
+  <div class="dash-card full" style="margin-bottom:16px">
+    <h3><span class="emoji">&#9889;</span> أبرز المؤشرات</h3>
+    <div class="insights-grid" id="insights"></div>
+  </div>
+
+  <!-- Charts grid -->
+  <div class="dash-grid">
+    <div class="dash-card full">
+      <h3><span class="emoji">&#128200;</span> عدد الحجاج حسب اليوم</h3>
+      <div class="chart-wrap tall"><canvas id="chartPilgrimsPerDay"></canvas></div>
+    </div>
+    <div class="dash-card">
+      <h3><span class="emoji">&#128337;</span> توزيع أوقات الإقلاع</h3>
+      <div class="chart-wrap"><canvas id="chartTimeDist"></canvas></div>
+    </div>
+    <div class="dash-card">
+      <h3><span class="emoji">&#128747;</span> الرحلات حسب المطار</h3>
+      <div class="chart-wrap"><canvas id="chartAirports"></canvas></div>
+    </div>
+    <div class="dash-card">
+      <h3><span class="emoji">&#127976;</span> أكثر الفنادق استقبالاً</h3>
+      <ul class="rank-list" id="topHotels"></ul>
+    </div>
+    <div class="dash-card">
+      <h3><span class="emoji">&#128101;</span> أكبر التكتلات</h3>
+      <ul class="rank-list" id="topTaktol"></ul>
+    </div>
+    <div class="dash-card full">
+      <h3><span class="emoji">&#128197;</span> عدد الرحلات حسب اليوم</h3>
+      <div class="chart-wrap"><canvas id="chartFlightsPerDay"></canvas></div>
+    </div>
+    <div class="dash-card full">
+      <h3><span class="emoji">&#128640;</span> ضغط الساعات &mdash; توزيع الرحلات على ساعات اليوم</h3>
+      <div class="chart-wrap tall"><canvas id="chartHourly"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== FLIGHTS VIEW ===== -->
+<div class="flights-view" id="flightsView">
+  <div class="stats-bar" id="statsBar"></div>
+  <div class="tabs-wrap"><div class="tabs" id="tabs"></div></div>
+  <div class="day-summary" id="daySummary"></div>
+  <div class="content" id="content"></div>
+</div>
+
+<!-- ===== FIREBASE VIEW ===== -->
+<div class="firebase-view" id="firebaseView">
+  <div class="fb-header">
+    <div class="fb-search-wrap">
+      <input type="text" id="fbSearch" class="fb-search" placeholder="&#128269; ابحث عن رحلة أو مستخدم..." oninput="filterTrips()">
+    </div>
+    <div class="fb-day-tabs" id="fbDayTabs"></div>
+    <div class="fb-stats-bar" id="fbStatsBar"></div>
+  </div>
+  <div class="fb-loading" id="fbLoading">&#9889; جاري تحميل البيانات من Firebase...</div>
+  <div class="fb-trips" id="fbTrips"></div>
+</div>
+
+<script>
+const DATA = {"2026-05-09":[{"fn":"6703","dt":"09:00 AM","at":"11:20 AM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":350,"pil":275,"adm":24,"mis":39,"g":[{"n":"الفسطاط","c":46,"t":"عطاء","h":"شعائر الحياة - 10007459","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"الرساله","c":1,"t":"وفد الله","h":"فيوليت 3 - 10000966","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"","c":3,"t":"ام القرى","h":"مرجانة الحجاز - 10012908","m":""},{"n":"","c":1,"t":"بشروا","h":"زاد اليقين - 10010919","m":""},{"n":"الصالحين","c":41,"t":"عطاء","h":"شعائر الحياة - 10007459","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"","c":1,"t":"ارتقاء","h":"بركة اليقين - 10010172","m":""},{"n":"","c":3,"t":"الرافدين","h":"مرجانة الحجاز - 10012908","m":""},{"n":"الصفوة","c":111,"t":"عطاء","h":"شعائر الحياة - 10007459","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"النجاة","c":46,"t":"عطاء","h":"شعائر الحياة - 10007459","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"الوفد الشامي","c":40,"t":"عطاء","h":"شعائر الحياة - 10007459","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"","c":2,"t":"عطاء","h":"شعائر الحياة - 10007459","m":""},{"n":"الفلاح","c":1,"t":"عطاء","h":"شعائر الحياة - 10007459","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"اقرا","c":1,"t":"قباء","h":"سنود الريان - 10001983","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"","c":2,"t":"وفد الله","h":"فيوليت 3 - 10000966","m":""}]},{"fn":"6701","dt":"06:30 PM","at":"08:50 PM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":350,"pil":331,"adm":15,"mis":0,"g":[{"n":"الذاكرين","c":84,"t":"عطاء","h":"شعائر الحياة - 10007459","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"بديع الزمان","c":48,"t":"عطاء","h":"شعائر الحياة - 10007459","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"","c":3,"t":"عطاء","h":"شعائر الحياة - 10007459","m":""},{"n":"الحجرات","c":47,"t":"عطاء","h":"شعائر الحياة - 10007459","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"الخولاني","c":89,"t":"عطاء","h":"شعائر الحياة - 10007459","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"ركب الإيمان","c":74,"t":"عطاء","h":"شعائر الحياة - 10007459","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"","c":1,"t":"وفد الله","h":"فيوليت 3 - 10000966","m":""}]}],"2026-05-10":[{"fn":"6861","dt":"08:10 AM","at":"10:55 AM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":350,"pil":304,"adm":30,"mis":16,"g":[{"n":"","c":5,"t":"البراق","h":"بركة اليقين - 10010172","m":""},{"n":"السفرة","c":1,"t":"البراق","h":"بركة اليقين - 10010172","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"},{"n":"","c":2,"t":"رؤيا","h":"جوهرة ال صبغة 1 - 10012631","m":""},{"n":"","c":3,"t":"روافد","h":"جوهرة النزهة - 10011735","m":""},{"n":"مسك","c":93,"t":"البراق","h":"بركة اليقين - 10010172","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"},{"n":"","c":3,"t":"وتعاونوا","h":"إبراهيم علي العقل (هياء) - 10011798","m":""},{"n":"الرحال","c":91,"t":"البراق","h":"بركة اليقين - 10010172","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"},{"n":"الفارس","c":4,"t":"البراق","h":"بركة اليقين - 10010172","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"},{"n":"","c":3,"t":"الماسي","h":"نرجس الحديقة - 10007206","m":""},{"n":"طريق الحجاز","c":1,"t":"وتعاونوا","h":"إبراهيم علي العقل (هياء) - 10011798","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"},{"n":"الحمزه","c":26,"t":"البراق","h":"بركة اليقين - 10010172","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"},{"n":"زمزم","c":7,"t":"البراق","h":"بركة اليقين - 10010172","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"},{"n":"","c":2,"t":"القصواء","h":"عفراء - 10000993","m":""},{"n":"دار السلام","c":1,"t":"عباد الرحمن","h":"سنود المشاعر - 10012634","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"ملاذ","c":92,"t":"البراق","h":"بركة اليقين - 10010172","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"}]},{"fn":"SV 300","dt":"12:40 PM","at":"02:50 PM","da":"مطار القاهرة الدولي","aa":"مطار جدة","seats":1,"pil":0,"adm":1,"mis":0,"g":[{"n":"","c":1,"t":"الحمد","h":"افق الخيمة - 10012747","m":""}]},{"fn":"6893","dt":"03:15 PM","at":"05:35 PM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":340,"pil":328,"adm":11,"mis":1,"g":[{"n":"","c":1,"t":"الضياء","h":"بركة اليقين - 10010172","m":""},{"n":"التقوى","c":158,"t":"المحراب","h":"فيلفيت ان - 10012235","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"},{"n":"الحمزه","c":179,"t":"البراق","h":"بركة اليقين - 10010172","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"},{"n":"","c":1,"t":"المحراب","h":"فيلفيت ان - 10012235","m":""}]},{"fn":"5737","dt":"06:45 PM","at":"09:05 PM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":350,"pil":329,"adm":14,"mis":7,"g":[{"n":"سلسبيل","c":47,"t":"عطاء","h":"شعائر الحياة - 10007459","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"أنوار المسالك","c":131,"t":"عطاء","h":"شعائر الحياة - 10007459","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"","c":1,"t":"النخبة","h":"جاد كدي - 10007042","m":""},{"n":"","c":1,"t":"عطاء","h":"شعائر الحياة - 10007459","m":""},{"n":"الحنين","c":98,"t":"عطاء","h":"شعائر الحياة - 10007459","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"الفلاح","c":46,"t":"عطاء","h":"شعائر الحياة - 10007459","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"ركب الإيمان","c":19,"t":"عطاء","h":"شعائر الحياة - 10007459","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"}]}],"2026-05-11":[{"fn":"6717","dt":"08:00 AM","at":"10:20 AM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":175,"pil":168,"adm":7,"mis":0,"g":[{"n":"","c":1,"t":"الحمد","h":"افق الخيمة - 10012747","m":""},{"n":"الجمل الدمشقية","c":84,"t":"الحمد","h":"افق الخيمة - 10012747","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"المحمل الاموي","c":90,"t":"الحمد","h":"افق الخيمة - 10012747","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"}]},{"fn":"5826","dt":"04:45 PM","at":"07:05 PM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":175,"pil":168,"adm":7,"mis":0,"g":[{"n":"درة التوحيد","c":91,"t":"الحمد","h":"افق الخيمة - 10012747","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"المحبه","c":47,"t":"الحمد","h":"افق الخيمة - 10012747","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"المقام","c":26,"t":"الحمد","h":"افق الخيمة - 10012747","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"البشير","c":10,"t":"الحمد","h":"افق الخيمة - 10012747","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"","c":1,"t":"الحمد","h":"افق الخيمة - 10012747","m":""}]}],"2026-05-12":[{"fn":"RB1801","dt":"06:30 AM","at":"08:00 AM","da":"مطار دمشق الدولي","aa":"مطار المدينة المنورة","seats":133,"pil":121,"adm":8,"mis":0,"g":[{"n":"الكمال","c":29,"t":"الخيرات","h":"ام ملينيوم - 10002236","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"المأمون","c":40,"t":"الخيرات","h":"ام ملينيوم - 10002236","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"","c":2,"t":"الخيرات","h":"ام ملينيوم - 10002236","m":""},{"n":"الثناء","c":4,"t":"الخيرات","h":"ام ملينيوم - 10002236","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"الشماع","c":54,"t":"الخيرات","h":"ام ملينيوم - 10002236","m":"37 - مركز ضيافة 11 - شركة هوليدي"}]},{"fn":"RB1805","dt":"10:55 AM","at":"12:25 PM","da":"مطار دمشق الدولي","aa":"مطار المدينة المنورة","seats":133,"pil":125,"adm":8,"mis":0,"g":[{"n":"السابقون","c":80,"t":"الخيرات","h":"ام ملينيوم - 10002236","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"الكمال","c":11,"t":"الخيرات","h":"ام ملينيوم - 10002236","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"","c":2,"t":"الخيرات","h":"ام ملينيوم - 10002236","m":""},{"n":"رحلة العمر","c":40,"t":"الخيرات","h":"ام ملينيوم - 10002236","m":"37 - مركز ضيافة 11 - شركة هوليدي"}]},{"fn":"SV 300","dt":"12:40 PM","at":"02:50 PM","da":"مطار القاهرة الدولي","aa":"مطار جدة","seats":5,"pil":0,"adm":3,"mis":2,"g":[{"n":"","c":2,"t":"ارتقاء","h":"بركة اليقين - 10010172","m":""},{"n":"","c":1,"t":"الحمد","h":"افق الخيمة - 10012747","m":""}]},{"fn":"RB1803","dt":"02:30 PM","at":"04:00 PM","da":"مطار دمشق الدولي","aa":"مطار المدينة المنورة","seats":132,"pil":127,"adm":5,"mis":0,"g":[{"n":"الثناء","c":51,"t":"الخيرات","h":"ام ملينيوم - 10002236","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"العوف","c":5,"t":"الخيرات","h":"ام ملينيوم - 10002236","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"ابي الفداء","c":76,"t":"الخيرات","h":"ام ملينيوم - 10002236","m":"37 - مركز ضيافة 11 - شركة هوليدي"}]}],"2026-05-13":[{"fn":"6831","dt":"07:30 AM","at":"10:15 AM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":175,"pil":167,"adm":7,"mis":0,"g":[{"n":"السفرة","c":44,"t":"البراق","h":"بركة اليقين - 10010172","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"},{"n":"الشهد","c":47,"t":"البراق","h":"بركة اليقين - 10010172","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"},{"n":"الفارس","c":83,"t":"البراق","h":"بركة اليقين - 10010172","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"}]},{"fn":"5865","dt":"08:15 AM","at":"11:00 AM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":180,"pil":170,"adm":6,"mis":3,"g":[{"n":"زمزم","c":86,"t":"البراق","h":"بركة اليقين - 10010172","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"},{"n":"الصابرين","c":90,"t":"البراق","h":"بركة اليقين - 10010172","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"}]},{"fn":"TK0092","dt":"12:25 PM","at":"04:15 PM","da":"مطار إسطنبول","aa":"مطار جدة","seats":2,"pil":0,"adm":2,"mis":0,"g":[{"n":"","c":2,"t":"المشاعر","h":"","m":""}]},{"fn":"SV 256 -IST-1","dt":"03:25 PM","at":"07:10 PM","da":"مطار إسطنبول","aa":"مطار جدة","seats":202,"pil":187,"adm":10,"mis":5,"g":[{"n":"الصفا","c":66,"t":"الرجاء","h":"نرجس الحديقة - 10007206","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"الملبي","c":85,"t":"الرجاء","h":"دفلى 2 - 10011067","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"العلا","c":43,"t":"الرجاء","h":"فيلفيت ان - 10012235","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"},{"n":"","c":2,"t":"الرجاء","h":"دفلى 2 - 10011067","m":""},{"n":"الصفا","c":1,"t":"الرجاء","h":"","m":"E117 - مركز ضيافة 12 - شركة هوليدي"}]},{"fn":"6889","dt":"05:00 PM","at":"07:45 PM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":175,"pil":167,"adm":8,"mis":0,"g":[{"n":"زيد الخير","c":49,"t":"الضياء","h":"بركة اليقين - 10010172","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"},{"n":"","c":3,"t":"الضياء","h":"بركة اليقين - 10010172","m":""},{"n":"القاسم","c":68,"t":"الضياء","h":"بركة اليقين - 10010172","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"},{"n":"النجيب","c":55,"t":"الضياء","h":"بركة اليقين - 10010172","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"}]},{"fn":"5833","dt":"05:30 PM","at":"08:15 PM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":175,"pil":168,"adm":7,"mis":0,"g":[{"n":"","c":2,"t":"عباد الرحمن","h":"سنود المشاعر - 10012634","m":""},{"n":"فرزات","c":1,"t":"عباد الرحمن","h":"سنود المشاعر - 10012634","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"الخاشعين","c":92,"t":"عباد الرحمن","h":"سنود المشاعر - 10012634","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"النهضة","c":70,"t":"عباد الرحمن","h":"سنود المشاعر - 10012634","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"السليم","c":10,"t":"عباد الرحمن","h":"سنود المشاعر - 10012634","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"}]},{"fn":"6777","dt":"06:00 PM","at":"08:30 PM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":175,"pil":166,"adm":8,"mis":1,"g":[{"n":"السعداء","c":47,"t":"الحمد","h":"افق الخيمة - 10012747","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"شخيص","c":47,"t":"الحمد","h":"افق الخيمة - 10012747","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"البشير","c":60,"t":"الحمد","h":"افق الخيمة - 10012747","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"","c":1,"t":"الحمد","h":"افق الخيمة - 10012747","m":""},{"n":"المقام","c":19,"t":"الحمد","h":"افق الخيمة - 10012747","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"}]},{"fn":"5845","dt":"06:00 PM","at":"08:45 PM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":180,"pil":164,"adm":12,"mis":1,"g":[{"n":"الكرام","c":37,"t":"رؤيا","h":"جوهرة ال صبغة 1 - 10012631","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"المشعر الحرام","c":73,"t":"روافد","h":"جوهرة النزهة - 10011735","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"},{"n":"الوداد","c":45,"t":"رؤيا","h":"جوهرة ال صبغة 1 - 10012631","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"","c":3,"t":"قباء","h":"سنود الريان - 10001983","m":""},{"n":"البهاء و النقاء","c":16,"t":"رؤيا","h":"جوهرة ال صبغة 1 - 10012631","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"","c":1,"t":"الرحاب الطاهرة","h":"ميزاب الخير - 10010182","m":""},{"n":"","c":1,"t":"روافد","h":"جوهرة النزهة - 10011735","m":""}]}],"2026-05-14":[{"fn":"5731","dt":"02:30 AM","at":"05:00 AM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":175,"pil":0,"adm":0,"mis":0,"g":[{"n":"","c":0,"t":"","h":"","m":""}]},{"fn":"6891","dt":"08:00 AM","at":"10:45 AM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":175,"pil":169,"adm":6,"mis":0,"g":[{"n":"الضحى","c":82,"t":"المحراب","h":"فيلفيت ان - 10012235","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"},{"n":"الشروق","c":93,"t":"المحراب","h":"فيلفيت ان - 10012235","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"}]},{"fn":"6857","dt":"08:15 AM","at":"11:00 AM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":175,"pil":164,"adm":9,"mis":2,"g":[{"n":"السفراني","c":3,"t":"المحراب","h":"فيلفيت ان - 10012235","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"},{"n":"الضحى","c":31,"t":"المحراب","h":"فيلفيت ان - 10012235","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"},{"n":"باجان","c":45,"t":"المحراب","h":"فيلفيت ان - 10012235","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"},{"n":"الجمال","c":1,"t":"المحراب","h":"فيلفيت ان - 10012235","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"},{"n":"العدنان","c":91,"t":"المحراب","h":"فيلفيت ان - 10012235","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"},{"n":"","c":2,"t":"المحراب","h":"فيلفيت ان - 10012235","m":""}]},{"fn":"6705","dt":"11:30 AM","at":"01:50 PM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":175,"pil":169,"adm":6,"mis":0,"g":[{"n":"الشام","c":5,"t":"بشروا","h":"زاد اليقين - 10010919","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"},{"n":"الذاكرين","c":9,"t":"عطاء","h":"شعائر الحياة - 10007459","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"الصفوة","c":3,"t":"عطاء","h":"شعائر الحياة - 10007459","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"","c":1,"t":"بشروا","h":"زاد اليقين - 10010919","m":""},{"n":"ثنيات الوداع","c":108,"t":"بشروا","h":"زاد اليقين - 10010919","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"},{"n":"الخولاني","c":1,"t":"عطاء","h":"شعائر الحياة - 10007459","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"طوبى","c":1,"t":"بشروا","h":"","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"},{"n":"طوبى","c":47,"t":"بشروا","h":"زاد اليقين - 10010919","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"}]},{"fn":"6769","dt":"01:15 PM","at":"03:35 PM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":180,"pil":171,"adm":8,"mis":1,"g":[{"n":"البشير","c":24,"t":"الحمد","h":"افق الخيمة - 10012747","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"","c":1,"t":"الحمد","h":"افق الخيمة - 10012747","m":""},{"n":"سندس","c":47,"t":"الحمد","h":"افق الخيمة - 10012747","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"الحراكي","c":93,"t":"الحمد","h":"افق الخيمة - 10012747","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"الأخوة","c":14,"t":"الحمد","h":"افق الخيمة - 10012747","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"}]},{"fn":"5733","dt":"02:15 PM","at":"04:35 PM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":350,"pil":337,"adm":13,"mis":0,"g":[{"n":"","c":1,"t":"النخبة","h":"جاد كدي - 10007042","m":""},{"n":"الاشواق","c":78,"t":"النخبة","h":"جاد كدي - 10007042","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"},{"n":"الابرار","c":135,"t":"النخبة","h":"جاد كدي - 10007042","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"},{"n":"الجيلاني","c":90,"t":"النخبة","h":"جاد كدي - 10007042","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"},{"n":"الموفقون","c":46,"t":"النخبة","h":"فيوليت 3 - 10000966","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"}]},{"fn":"SV 256 -IST-2","dt":"03:25 PM","at":"07:10 PM","da":"مطار إسطنبول","aa":"مطار جدة","seats":190,"pil":177,"adm":10,"mis":3,"g":[{"n":"الملبي","c":4,"t":"الرجاء","h":"دفلى 2 - 10011067","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"المدينة المنورة","c":35,"t":"الرجاء","h":"إبراهيم علي العقل (هياء) - 10011798","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"},{"n":"طيبة جوبر","c":42,"t":"الرجاء","h":"دفلى 2 - 10011067","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"","c":2,"t":"الرجاء","h":"دفلى 2 - 10011067","m":""},{"n":"العسلي","c":43,"t":"الرجاء","h":"دفلى 2 - 10011067","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"الغزالي","c":61,"t":"الرجاء","h":"دفلى 2 - 10011067","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"}]},{"fn":"6727","dt":"06:00 PM","at":"08:20 PM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":175,"pil":163,"adm":6,"mis":2,"g":[{"n":"الجمل الدمشقية","c":8,"t":"الحمد","h":"افق الخيمة - 10012747","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"الاوائل","c":48,"t":"الحمد","h":"افق الخيمة - 10012747","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"الرحمات","c":47,"t":"الحمد","h":"افق الخيمة - 10012747","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"المحمل الاموي","c":2,"t":"الحمد","h":"افق الخيمة - 10012747","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"درة الشام","c":62,"t":"الحمد","h":"افق الخيمة - 10012747","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"الجمل الدمشقية","c":2,"t":"الحمد","h":"","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"}]},{"fn":"6897","dt":"05:50 PM","at":"08:35 PM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":180,"pil":164,"adm":10,"mis":1,"g":[{"n":"اتقان","c":85,"t":"وتعاونوا","h":"إبراهيم علي العقل (هياء) - 10011798","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"},{"n":"الطواف","c":86,"t":"وتعاونوا","h":"إبراهيم علي العقل (هياء) - 10011798","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"},{"n":"","c":1,"t":"وتعاونوا","h":"إبراهيم علي العقل (هياء) - 10011798","m":""},{"n":"","c":2,"t":"قباء","h":"سنود الريان - 10001983","m":""}]}],"2026-05-15":[{"fn":"6751","dt":"07:00 AM","at":"09:20 AM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":175,"pil":167,"adm":8,"mis":0,"g":[{"n":"","c":1,"t":"الحمد","h":"افق الخيمة - 10012747","m":""},{"n":"الفاتح","c":35,"t":"النخبة","h":"جاد كدي - 10007042","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"},{"n":"الياسمين","c":93,"t":"النخبة","h":"جاد كدي - 10007042","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"},{"n":"الياسمين","c":1,"t":"النخبة","h":"","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"},{"n":"التوابين","c":12,"t":"النخبة","h":"جاد كدي - 10007042","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"},{"n":"الأخوة","c":32,"t":"الحمد","h":"افق الخيمة - 10012747","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"","c":1,"t":"النخبة","h":"جاد كدي - 10007042","m":""}]},{"fn":"6835","dt":"07:30 AM","at":"10:15 AM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":175,"pil":167,"adm":7,"mis":0,"g":[{"n":"السفراني","c":75,"t":"المحراب","h":"فيلفيت ان - 10012235","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"},{"n":"الفلك","c":47,"t":"المحراب","h":"فيلفيت ان - 10012235","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"},{"n":"التقوى","c":49,"t":"المحراب","h":"فيلفيت ان - 10012235","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"},{"n":"الجمال","c":3,"t":"المحراب","h":"فيلفيت ان - 10012235","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"}]},{"fn":"RB1807","dt":"08:50 AM","at":"10:20 AM","da":"مطار حلب الدولي","aa":"مطار المدينة المنورة","seats":133,"pil":130,"adm":3,"mis":0,"g":[{"n":"شحرور","c":6,"t":"الخيرات","h":"ام ملينيوم - 10002236","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"الكمال","c":4,"t":"الخيرات","h":"ام ملينيوم - 10002236","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"عز الدين","c":10,"t":"الخيرات","h":"ام ملينيوم - 10002236","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"الثناء","c":5,"t":"الخيرات","h":"ام ملينيوم - 10002236","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"العوف","c":72,"t":"الخيرات","h":"ام ملينيوم - 10002236","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"صدى الروح","c":26,"t":"الخيرات","h":"ام ملينيوم - 10002236","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"المزرزع","c":10,"t":"الخيرات","h":"ام ملينيوم - 10002236","m":"37 - مركز ضيافة 11 - شركة هوليدي"}]},{"fn":"6805","dt":"07:35 AM","at":"10:20 AM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":175,"pil":169,"adm":5,"mis":0,"g":[{"n":"البراء","c":174,"t":"الضياء","h":"بركة اليقين - 10010172","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"}]},{"fn":"5831","dt":"09:00 AM","at":"11:20 AM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":175,"pil":158,"adm":8,"mis":0,"g":[{"n":"","c":1,"t":"النخبة","h":"جاد كدي - 10007042","m":""},{"n":"التوابين","c":1,"t":"النخبة","h":"","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"},{"n":"التوابين","c":54,"t":"النخبة","h":"جاد كدي - 10007042","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"},{"n":"الاشواق","c":17,"t":"النخبة","h":"جاد كدي - 10007042","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"},{"n":"امانوس","c":93,"t":"النخبة","h":"جاد كدي - 10007042","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"}]},{"fn":"6867","dt":"03:30 PM","at":"06:15 PM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":175,"pil":165,"adm":9,"mis":1,"g":[{"n":"","c":1,"t":"الاجابة","h":"عفراء - 10000993","m":""},{"n":"عرفات","c":80,"t":"المحراب","h":"فيلفيت ان - 10012235","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"},{"n":"","c":2,"t":"المحراب","h":"فيلفيت ان - 10012235","m":""},{"n":"التقوى","c":4,"t":"المحراب","h":"فيلفيت ان - 10012235","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"},{"n":"الجمال","c":87,"t":"المحراب","h":"فيلفيت ان - 10012235","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"}]},{"fn":"6869","dt":"04:15 PM","at":"07:00 PM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":175,"pil":77,"adm":4,"mis":2,"g":[{"n":"النجيب","c":37,"t":"الضياء","h":"بركة اليقين - 10010172","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"},{"n":"البراء","c":42,"t":"الضياء","h":"بركة اليقين - 10010172","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"},{"n":"","c":2,"t":"الضياء","h":"بركة اليقين - 10010172","m":""}]},{"fn":"6773","dt":"05:00 PM","at":"07:45 PM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":175,"pil":128,"adm":6,"mis":1,"g":[{"n":"الفضيلة","c":47,"t":"الضياء","h":"بركة اليقين - 10010172","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"},{"n":"","c":1,"t":"الضياء","h":"بركة اليقين - 10010172","m":""},{"n":"اليازجي","c":86,"t":"رؤيا","h":"جوهرة ال صبغة 1 - 10012631","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"}]},{"fn":"6801","dt":"06:00 PM","at":"08:20 PM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":175,"pil":170,"adm":4,"mis":0,"g":[{"n":"الراية","c":38,"t":"النخبة","h":"جاد كدي - 10007042","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"},{"n":"السالم","c":136,"t":"النخبة","h":"جاد كدي - 10007042","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"}]},{"fn":"6713","dt":"06:15 PM","at":"08:35 PM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":175,"pil":142,"adm":7,"mis":19,"g":[{"n":"","c":2,"t":"بشروا","h":"زاد اليقين - 10010919","m":""},{"n":"الوفادة","c":5,"t":"بشروا","h":"زاد اليقين - 10010919","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"},{"n":"","c":1,"t":"الرافدين","h":"مرجانة الحجاز - 10012908","m":""},{"n":"الوسيم","c":140,"t":"بشروا","h":"زاد اليقين - 10010919","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"},{"n":"الإخاء","c":1,"t":"نسك","h":"منصور الثبيتي (اورينز) - 10011487","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"}]},{"fn":"6833","dt":"07:00 PM","at":"09:35 PM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":175,"pil":166,"adm":9,"mis":0,"g":[{"n":"الطاهر","c":136,"t":"رؤيا","h":"جوهرة ال صبغة 1 - 10012631","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"","c":3,"t":"رؤيا","h":"جوهرة ال صبغة 1 - 10012631","m":""},{"n":"روائع طيبة","c":36,"t":"رؤيا","h":"جوهرة ال صبغة 1 - 10012631","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"}]},{"fn":"6771","dt":"07:30 PM","at":"09:50 PM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":340,"pil":319,"adm":15,"mis":0,"g":[{"n":"زوار الشفيع","c":93,"t":"ارتقاء","h":"بركة اليقين - 10010172","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"},{"n":"شامنا المباركة","c":13,"t":"ارتقاء","h":"بركة اليقين - 10010172","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"},{"n":"خير البريه","c":46,"t":"ارتقاء","h":"بركة اليقين - 10010172","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"},{"n":"زمرد","c":4,"t":"بشروا","h":"زاد اليقين - 10010919","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"},{"n":"الجميل","c":45,"t":"ارتقاء","h":"بركة اليقين - 10010172","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"},{"n":"تلبية","c":93,"t":"ارتقاء","h":"بركة اليقين - 10010172","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"},{"n":"","c":1,"t":"ارتقاء","h":"بركة اليقين - 10010172","m":""},{"n":"الراشدين","c":1,"t":"بشروا","h":"زاد اليقين - 10010919","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"},{"n":"التوفيق","c":23,"t":"ارتقاء","h":"بركة اليقين - 10010172","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"},{"n":"سيدي تاج","c":15,"t":"بشروا","h":"زاد اليقين - 10010919","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"}]}],"2026-05-16":[{"fn":"RB1809","dt":"06:30 AM","at":"08:00 AM","da":"مطار دمشق الدولي","aa":"مطار المدينة المنورة","seats":133,"pil":127,"adm":5,"mis":0,"g":[{"n":"رحلة العمر","c":8,"t":"الخيرات","h":"ام ملينيوم - 10002236","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"صدى الروح","c":20,"t":"الخيرات","h":"ام ملينيوم - 10002236","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"الكمال","c":3,"t":"الخيرات","h":"ام ملينيوم - 10002236","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"المأمون","c":7,"t":"الخيرات","h":"ام ملينيوم - 10002236","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"شحرور","c":11,"t":"الخيرات","h":"ام ملينيوم - 10002236","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"السابقون","c":12,"t":"الخيرات","h":"ام ملينيوم - 10002236","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"العوف","c":7,"t":"الخيرات","h":"ام ملينيوم - 10002236","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"الشماع","c":18,"t":"الخيرات","h":"ام ملينيوم - 10002236","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"المزرزع","c":6,"t":"الخيرات","h":"ام ملينيوم - 10002236","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"عز الدين","c":13,"t":"الخيرات","h":"ام ملينيوم - 10002236","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"ابي الفداء","c":6,"t":"الخيرات","h":"ام ملينيوم - 10002236","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"الثناء","c":21,"t":"الخيرات","h":"ام ملينيوم - 10002236","m":"37 - مركز ضيافة 11 - شركة هوليدي"}]},{"fn":"6767","dt":"07:15 AM","at":"09:35 AM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":175,"pil":157,"adm":8,"mis":0,"g":[{"n":"الراية","c":102,"t":"النخبة","h":"جاد كدي - 10007042","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"},{"n":"الفاتح","c":61,"t":"النخبة","h":"جاد كدي - 10007042","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"},{"n":"","c":2,"t":"النخبة","h":"جاد كدي - 10007042","m":""}]},{"fn":"6799","dt":"07:45 AM","at":"10:05 AM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":175,"pil":167,"adm":8,"mis":0,"g":[{"n":"الاحرار","c":1,"t":"بشروا","h":"","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"},{"n":"الوئام","c":48,"t":"بشروا","h":"زاد اليقين - 10010919","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"},{"n":"رواحل","c":47,"t":"بشروا","h":"زاد اليقين - 10010919","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"},{"n":"","c":1,"t":"بشروا","h":"زاد اليقين - 10010919","m":""},{"n":"سيدي تاج","c":31,"t":"بشروا","h":"زاد اليقين - 10010919","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"},{"n":"الاحرار","c":47,"t":"بشروا","h":"زاد اليقين - 10010919","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"}]},{"fn":"6775","dt":"07:45 AM","at":"10:05 AM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":170,"pil":160,"adm":4,"mis":0,"g":[{"n":"الأقصى","c":4,"t":"الكعبة المشرفة","h":"جوهرة ال صبغة 1 - 10012631","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"السويدان","c":160,"t":"الكعبة المشرفة","h":"جوهرة ال صبغة 1 - 10012631","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"}]},{"fn":"6839","dt":"07:30 AM","at":"10:15 AM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":175,"pil":168,"adm":7,"mis":0,"g":[{"n":"","c":2,"t":"رؤيا","h":"جوهرة ال صبغة 1 - 10012631","m":""},{"n":"ايات","c":44,"t":"رؤيا","h":"جوهرة ال صبغة 1 - 10012631","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"البهاء و النقاء","c":129,"t":"رؤيا","h":"جوهرة ال صبغة 1 - 10012631","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"}]},{"fn":"6843","dt":"08:00 AM","at":"10:45 AM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":175,"pil":168,"adm":7,"mis":0,"g":[{"n":"المخزومي","c":89,"t":"رؤيا","h":"جوهرة ال صبغة 1 - 10012631","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"المخلصين","c":42,"t":"رؤيا","h":"جوهرة ال صبغة 1 - 10012631","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"نسائم","c":44,"t":"رؤيا","h":"جوهرة ال صبغة 1 - 10012631","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"}]},{"fn":"6803","dt":"08:00 AM","at":"10:45 AM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":175,"pil":168,"adm":6,"mis":0,"g":[{"n":"السعد","c":101,"t":"روافد","h":"جوهرة النزهة - 10011735","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"},{"n":"الهدى","c":73,"t":"روافد","h":"جوهرة النزهة - 10011735","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"}]},{"fn":"6865","dt":"10:00 AM","at":"12:45 PM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":340,"pil":323,"adm":14,"mis":3,"g":[{"n":"","c":2,"t":"روافد","h":"جوهرة النزهة - 10011735","m":""},{"n":"السعد","c":23,"t":"روافد","h":"جوهرة النزهة - 10011735","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"},{"n":"الغفران","c":93,"t":"روافد","h":"جوهرة النزهة - 10011735","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"},{"n":"الرشيد","c":131,"t":"روافد","h":"جوهرة النزهة - 10011735","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"},{"n":"أجياد","c":88,"t":"روافد","h":"جوهرة النزهة - 10011735","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"}]},{"fn":"RB1811","dt":"02:40 PM","at":"04:10 PM","da":"مطار دمشق الدولي","aa":"مطار المدينة المنورة","seats":132,"pil":120,"adm":7,"mis":0,"g":[{"n":"المزرزع","c":32,"t":"الخيرات","h":"ام ملينيوم - 10002236","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"عز الدين","c":24,"t":"الخيرات","h":"ام ملينيوم - 10002236","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"","c":2,"t":"الخيرات","h":"ام ملينيوم - 10002236","m":""},{"n":"الثناء","c":1,"t":"الخيرات","h":"ام ملينيوم - 10002236","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"شحرور","c":68,"t":"الخيرات","h":"ام ملينيوم - 10002236","m":"37 - مركز ضيافة 11 - شركة هوليدي"}]},{"fn":"6715","dt":"04:00 PM","at":"06:20 PM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":175,"pil":166,"adm":9,"mis":0,"g":[{"n":"حلوم","c":45,"t":"بشروا","h":"زاد اليقين - 10010919","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"},{"n":"","c":1,"t":"بشروا","h":"زاد اليقين - 10010919","m":""},{"n":"الراشدين","c":45,"t":"بشروا","h":"زاد اليقين - 10010919","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"},{"n":"جبلة الادهمية","c":45,"t":"بشروا","h":"زاد اليقين - 10010919","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"},{"n":"زمرد","c":39,"t":"بشروا","h":"زاد اليقين - 10010919","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"}]},{"fn":"6755","dt":"04:00 PM","at":"06:20 PM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":175,"pil":169,"adm":6,"mis":0,"g":[{"n":"الوفادة","c":90,"t":"بشروا","h":"زاد اليقين - 10010919","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"},{"n":"الشام","c":85,"t":"بشروا","h":"زاد اليقين - 10010919","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"}]},{"fn":"6845","dt":"04:30 PM","at":"07:15 PM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":175,"pil":147,"adm":8,"mis":0,"g":[{"n":"","c":2,"t":"وتعاونوا","h":"إبراهيم علي العقل (هياء) - 10011798","m":""},{"n":"طريق الحجاز","c":5,"t":"وتعاونوا","h":"إبراهيم علي العقل (هياء) - 10011798","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"},{"n":"المشعر الحرام","c":55,"t":"روافد","h":"جوهرة النزهة - 10011735","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"},{"n":"البيت العتيق","c":93,"t":"وتعاونوا","h":"إبراهيم علي العقل (هياء) - 10011798","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"}]},{"fn":"6849","dt":"04:45 PM","at":"07:30 PM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":175,"pil":164,"adm":9,"mis":0,"g":[{"n":"أجياد","c":3,"t":"روافد","h":"جوهرة النزهة - 10011735","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"},{"n":"","c":1,"t":"الذهبي","h":"فجر النسك - 10011289","m":""},{"n":"البيان","c":33,"t":"الذهبي","h":"فجر النسك - 10011289","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"عثمان بن عفان","c":54,"t":"الذهبي","h":"فجر النسك - 10011289","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"دار السلام","c":81,"t":"عباد الرحمن","h":"سنود المشاعر - 10012634","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"","c":1,"t":"روافد","h":"جوهرة النزهة - 10011735","m":""}]},{"fn":"6879","dt":"04:45 PM","at":"07:30 PM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":175,"pil":163,"adm":10,"mis":0,"g":[{"n":"السليم","c":25,"t":"عباد الرحمن","h":"سنود المشاعر - 10012634","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"الخاشعين","c":1,"t":"عباد الرحمن","h":"سنود المشاعر - 10012634","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"دار السلام","c":44,"t":"عباد الرحمن","h":"سنود المشاعر - 10012634","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"السراج","c":100,"t":"عباد الرحمن","h":"سنود المشاعر - 10012634","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"","c":3,"t":"عباد الرحمن","h":"سنود المشاعر - 10012634","m":""}]},{"fn":"6753","dt":"07:45 PM","at":"10:05 PM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":175,"pil":166,"adm":7,"mis":0,"g":[{"n":"شامنا المباركة","c":78,"t":"ارتقاء","h":"بركة اليقين - 10010172","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"},{"n":"المروة","c":45,"t":"ارتقاء","h":"بركة اليقين - 10010172","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"},{"n":"","c":1,"t":"ارتقاء","h":"بركة اليقين - 10010172","m":""},{"n":"كفاح","c":49,"t":"ارتقاء","h":"بركة اليقين - 10010172","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"}]}],"2026-05-17":[{"fn":"TK 096 - EG","dt":"01:15 AM","at":"05:05 AM","da":"مطار إسطنبول","aa":"مطار جدة","seats":2,"pil":2,"adm":0,"mis":0,"g":[{"n":"الضاهر","c":2,"t":"ارتقاء","h":"بركة اليقين - 10010172","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"}]},{"fn":"SV 308","dt":"04:25 AM","at":"06:35 AM","da":"مطار القاهرة الدولي","aa":"مطار جدة","seats":184,"pil":176,"adm":8,"mis":0,"g":[{"n":"الضاهر","c":50,"t":"ارتقاء","h":"بركة اليقين - 10010172","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"},{"n":"جمعية سوريا الغد","c":39,"t":"الكعبة المشرفة","h":"جوهرة ال صبغة 1 - 10012631","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"بقلة","c":95,"t":"الحمد","h":"افق الخيمة - 10012747","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"}]},{"fn":"6841","dt":"07:10 AM","at":"09:55 AM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":175,"pil":166,"adm":7,"mis":0,"g":[{"n":"ابو بكر الجعفر","c":13,"t":"وتعاونوا","h":"إبراهيم علي العقل (هياء) - 10011798","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"},{"n":"","c":1,"t":"وتعاونوا","h":"إبراهيم علي العقل (هياء) - 10011798","m":""},{"n":"طريق الحجاز","c":159,"t":"وتعاونوا","h":"إبراهيم علي العقل (هياء) - 10011798","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"}]},{"fn":"6761","dt":"07:45 AM","at":"10:05 AM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":175,"pil":154,"adm":9,"mis":0,"g":[{"n":"الشاكرين","c":35,"t":"ارتقاء","h":"بركة اليقين - 10010172","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"},{"n":"صلاح الدين","c":50,"t":"ارتقاء","h":"بركة اليقين - 10010172","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"},{"n":"الأقصى","c":30,"t":"الكعبة المشرفة","h":"جوهرة ال صبغة 1 - 10012631","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"الفردوس","c":48,"t":"الكعبة المشرفة","h":"جوهرة ال صبغة 1 - 10012631","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"}]},{"fn":"6711","dt":"08:00 AM","at":"10:20 AM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":175,"pil":166,"adm":8,"mis":0,"g":[{"n":"التوفيق","c":78,"t":"ارتقاء","h":"بركة اليقين - 10010172","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"},{"n":"كفاح","c":43,"t":"ارتقاء","h":"بركة اليقين - 10010172","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"},{"n":"الامام النووي","c":1,"t":"الكعبة المشرفة","h":"","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"الامام النووي","c":50,"t":"الكعبة المشرفة","h":"جوهرة ال صبغة 1 - 10012631","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"","c":1,"t":"ارتقاء","h":"بركة اليقين - 10010172","m":""},{"n":"","c":1,"t":"الكعبة المشرفة","h":"جوهرة ال صبغة 1 - 10012631","m":""}]},{"fn":"6823","dt":"07:50 AM","at":"10:35 AM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":175,"pil":168,"adm":7,"mis":0,"g":[{"n":"شفاء","c":3,"t":"المشاعر","h":"إبراهيم علي العقل (هياء) - 10011798","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"},{"n":"الهاشمي","c":31,"t":"المشاعر","h":"فيوليت 3 - 10000966","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"ابو بكر الجعفر","c":108,"t":"وتعاونوا","h":"إبراهيم علي العقل (هياء) - 10011798","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"},{"n":"الياقوت","c":33,"t":"وتعاونوا","h":"إبراهيم علي العقل (هياء) - 10011798","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"}]},{"fn":"5735","dt":"08:15 AM","at":"10:35 AM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":350,"pil":327,"adm":10,"mis":1,"g":[{"n":"","c":2,"t":"وفد الله","h":"فيوليت 3 - 10000966","m":""},{"n":"الفرقان","c":117,"t":"وفد الله","h":"فيوليت 3 - 10000966","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"المبرور","c":11,"t":"وفد الله","h":"فيوليت 3 - 10000966","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"همة","c":69,"t":"وفد الله","h":"فيوليت 3 - 10000966","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"الأشقر","c":48,"t":"وفد الله","h":"فيوليت 3 - 10000966","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"الرساله","c":90,"t":"وفد الله","h":"فيوليت 3 - 10000966","m":"E117 - مركز ضيافة 12 - شركة هوليدي"}]},{"fn":"6881","dt":"08:00 AM","at":"10:45 AM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":175,"pil":168,"adm":7,"mis":0,"g":[{"n":"","c":1,"t":"القصواء","h":"عفراء - 10000993","m":""},{"n":"الفيصل","c":86,"t":"القصواء","h":"عفراء - 10000993","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"الريان","c":88,"t":"القصواء","h":"عفراء - 10000993","m":"37 - مركز ضيافة 11 - شركة هوليدي"}]},{"fn":"6837","dt":"08:00 AM","at":"10:45 AM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":175,"pil":168,"adm":7,"mis":0,"g":[{"n":"","c":1,"t":"الماسي","h":"نرجس الحديقة - 10007206","m":""},{"n":"اليمان الشامي","c":11,"t":"المشاعر","h":"الرسالة الماسي - 10007923","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"شفاء","c":69,"t":"المشاعر","h":"إبراهيم علي العقل (هياء) - 10011798","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"},{"n":"اهل التقوى","c":5,"t":"المشاعر","h":"الرسالة الماسي - 10007923","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"سواعد الخير","c":6,"t":"المشاعر","h":"الرسالة الماسي - 10007923","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"اشراق","c":3,"t":"الماسي","h":"نرجس الحديقة - 10007206","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"عمر بن الخطاب","c":2,"t":"المشاعر","h":"فجر النسك - 10011289","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"اللجين","c":78,"t":"المشاعر","h":"فجر النسك - 10011289","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"}]},{"fn":"6807","dt":"08:30 AM","at":"11:15 AM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":175,"pil":170,"adm":5,"mis":0,"g":[{"n":"أنس بن مالك","c":93,"t":"القصواء","h":"عفراء - 10000993","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"النصر","c":76,"t":"القصواء","h":"عفراء - 10000993","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"الفيصل","c":6,"t":"القصواء","h":"عفراء - 10000993","m":"37 - مركز ضيافة 11 - شركة هوليدي"}]},{"fn":"6759","dt":"04:00 PM","at":"06:20 PM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":175,"pil":158,"adm":9,"mis":0,"g":[{"n":"","c":2,"t":"وفد الله","h":"فيوليت 3 - 10000966","m":""},{"n":"بركات الحج","c":49,"t":"وفد الله","h":"فيوليت 3 - 10000966","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"سبل الخير","c":64,"t":"الكعبة المشرفة","h":"جوهرة ال صبغة 1 - 10012631","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"بركات الحج","c":5,"t":"وفد الله","h":"","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"","c":1,"t":"الكعبة المشرفة","h":"جوهرة ال صبغة 1 - 10012631","m":""},{"n":"المناسك","c":46,"t":"وفد الله","h":"فيوليت 3 - 10000966","m":"E117 - مركز ضيافة 12 - شركة هوليدي"}]},{"fn":"6731","dt":"04:30 PM","at":"06:50 PM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":175,"pil":92,"adm":4,"mis":25,"g":[{"n":"فرزات","c":1,"t":"عباد الرحمن","h":"سنود المشاعر - 10012634","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"الخطيب","c":95,"t":"وفد الله","h":"فيوليت 3 - 10000966","m":"E117 - مركز ضيافة 12 - شركة هوليدي"}]},{"fn":"6745","dt":"04:30 PM","at":"06:50 PM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":175,"pil":168,"adm":6,"mis":0,"g":[{"n":"الفاروق","c":87,"t":"نسك","h":"منصور الثبيتي (اورينز) - 10011487","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"الهلال","c":87,"t":"نسك","h":"منصور الثبيتي (اورينز) - 10011487","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"}]},{"fn":"6709","dt":"04:45 PM","at":"07:05 PM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":175,"pil":167,"adm":7,"mis":0,"g":[{"n":"","c":1,"t":"نسك","h":"منصور الثبيتي (اورينز) - 10011487","m":""},{"n":"المقربون","c":40,"t":"نسك","h":"منصور الثبيتي (اورينز) - 10011487","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"الفيحاء","c":133,"t":"نسك","h":"منصور الثبيتي (اورينز) - 10011487","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"}]},{"fn":"6757","dt":"04:50 PM","at":"07:10 PM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":175,"pil":162,"adm":7,"mis":0,"g":[{"n":"زاد القلوب","c":47,"t":"نسك","h":"منصور الثبيتي (اورينز) - 10011487","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"الإخاء","c":20,"t":"نسك","h":"منصور الثبيتي (اورينز) - 10011487","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"الفيحاء","c":2,"t":"نسك","h":"منصور الثبيتي (اورينز) - 10011487","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"الهلال","c":3,"t":"نسك","h":"منصور الثبيتي (اورينز) - 10011487","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"","c":1,"t":"نسك","h":"منصور الثبيتي (اورينز) - 10011487","m":""},{"n":"الوافي","c":89,"t":"نسك","h":"منصور الثبيتي (اورينز) - 10011487","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"الإرشاد","c":2,"t":"نسك","h":"منصور الثبيتي (اورينز) - 10011487","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"المقربون","c":5,"t":"نسك","h":"منصور الثبيتي (اورينز) - 10011487","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"}]},{"fn":"6895","dt":"05:00 PM","at":"07:45 PM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":175,"pil":90,"adm":4,"mis":0,"g":[{"n":"احياء السنه","c":94,"t":"القصواء","h":"عفراء - 10000993","m":"37 - مركز ضيافة 11 - شركة هوليدي"}]}],"2026-05-18":[{"fn":"RB1813","dt":"05:15 AM","at":"06:45 AM","da":"مطار دمشق الدولي","aa":"مطار المدينة المنورة","seats":127,"pil":120,"adm":7,"mis":0,"g":[{"n":"الاندلس","c":63,"t":"الرضوان","h":"أنجم - 10001487","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"التوكل","c":2,"t":"الرضوان","h":"أنجم - 10001487","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"الجمان","c":32,"t":"الرضوان","h":"أنجم - 10001487","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"روضه المختار","c":3,"t":"الرضوان","h":"أنجم - 10001487","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"الجمان","c":1,"t":"الرضوان","h":"","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"العاديات","c":26,"t":"الرضوان","h":"أنجم - 10001487","m":"37 - مركز ضيافة 11 - شركة هوليدي"}]},{"fn":"6733","dt":"06:45 AM","at":"09:05 AM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":175,"pil":169,"adm":6,"mis":0,"g":[{"n":"الإخاء","c":62,"t":"نسك","h":"منصور الثبيتي (اورينز) - 10011487","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"الإرشاد","c":113,"t":"نسك","h":"منصور الثبيتي (اورينز) - 10011487","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"}]},{"fn":"6781","dt":"07:30 AM","at":"09:50 AM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":175,"pil":170,"adm":5,"mis":0,"g":[{"n":"المبرور","c":83,"t":"وفد الله","h":"فيوليت 3 - 10000966","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"ابراهيم الخليل","c":92,"t":"وفد الله","h":"فيوليت 3 - 10000966","m":"E117 - مركز ضيافة 12 - شركة هوليدي"}]},{"fn":"6787","dt":"08:00 AM","at":"10:20 AM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":175,"pil":163,"adm":7,"mis":3,"g":[{"n":"الامام الشاطبي","c":1,"t":"قباء","h":"سنود الريان - 10001983","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"الصديق","c":167,"t":"قباء","h":"سنود الريان - 10001983","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"وفد الرحمن","c":1,"t":"قباء","h":"سنود الريان - 10001983","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"","c":1,"t":"قباء","h":"سنود الريان - 10001983","m":""}]},{"fn":"6883","dt":"08:00 AM","at":"10:45 AM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":175,"pil":162,"adm":8,"mis":5,"g":[{"n":"الشهباء","c":43,"t":"الاجابة","h":"عفراء - 10000993","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"","c":1,"t":"الماسي","h":"نرجس الحديقة - 10007206","m":""},{"n":"ويس و ملا","c":124,"t":"الماسي","h":"نرجس الحديقة - 10007206","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"","c":2,"t":"الاجابة","h":"عفراء - 10000993","m":""}]},{"fn":"6847","dt":"08:00 AM","at":"10:45 AM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":175,"pil":167,"adm":8,"mis":0,"g":[{"n":"عزائم","c":46,"t":"الماسي","h":"نرجس الحديقة - 10007206","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"اشراق","c":91,"t":"الماسي","h":"نرجس الحديقة - 10007206","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"النور","c":37,"t":"الماسي","h":"نرجس الحديقة - 10007206","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"","c":1,"t":"الماسي","h":"نرجس الحديقة - 10007206","m":""}]},{"fn":"TK5380","dt":"07:45 AM","at":"11:35 AM","da":"مطار غازي عنتاب","aa":"مطار جدة","seats":190,"pil":168,"adm":16,"mis":2,"g":[{"n":"الهاشمي","c":52,"t":"المشاعر","h":"فيوليت 3 - 10000966","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"عمر بن الخطاب","c":2,"t":"المشاعر","h":"فجر النسك - 10011289","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"سواعد الخير","c":27,"t":"المشاعر","h":"الرسالة الماسي - 10007923","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"اليمان الشامي","c":34,"t":"المشاعر","h":"الرسالة الماسي - 10007923","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"","c":2,"t":"ام القرى","h":"مرجانة الحجاز - 10012908","m":""},{"n":"","c":2,"t":"الرافدين","h":"مرجانة الحجاز - 10012908","m":""},{"n":"","c":3,"t":"المشاعر","h":"","m":""},{"n":"اهل التقوى","c":61,"t":"المشاعر","h":"الرسالة الماسي - 10007923","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"الغمامة","c":1,"t":"ام القرى","h":"مرجانة الحجاز - 10012908","m":"E117 - مركز ضيافة 12 - شركة هوليدي"}]},{"fn":"6871","dt":"03:15 PM","at":"06:00 PM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":175,"pil":111,"adm":6,"mis":3,"g":[{"n":"الفيصل","c":1,"t":"القصواء","h":"عفراء - 10000993","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"","c":3,"t":"القصواء","h":"عفراء - 10000993","m":""},{"n":"الريان","c":51,"t":"القصواء","h":"عفراء - 10000993","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"النصر","c":62,"t":"القصواء","h":"عفراء - 10000993","m":"37 - مركز ضيافة 11 - شركة هوليدي"}]},{"fn":"6729","dt":"04:30 PM","at":"06:50 PM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":175,"pil":167,"adm":7,"mis":0,"g":[{"n":"الغمامة","c":75,"t":"ام القرى","h":"مرجانة الحجاز - 10012908","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"","c":1,"t":"الرافدين","h":"مرجانة الحجاز - 10012908","m":""},{"n":"الاوابين","c":52,"t":"ام القرى","h":"مرجانة الحجاز - 10012908","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"المعارج","c":46,"t":"ام القرى","h":"مرجانة الحجاز - 10012908","m":"E117 - مركز ضيافة 12 - شركة هوليدي"}]},{"fn":"RB1815","dt":"05:30 PM","at":"07:00 PM","da":"مطار دمشق الدولي","aa":"مطار المدينة المنورة","seats":127,"pil":122,"adm":5,"mis":0,"g":[{"n":"الغراء","c":41,"t":"الرضوان","h":"أنجم - 10001487","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"روضه المختار","c":76,"t":"الرضوان","h":"أنجم - 10001487","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"التوكل","c":10,"t":"الرضوان","h":"أنجم - 10001487","m":"37 - مركز ضيافة 11 - شركة هوليدي"}]},{"fn":"6851","dt":"04:15 PM","at":"07:00 PM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":175,"pil":168,"adm":7,"mis":0,"g":[{"n":"الحرم الشريف","c":94,"t":"الماسي","h":"نرجس الحديقة - 10007206","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"نماء","c":80,"t":"الماسي","h":"نرجس الحديقة - 10007206","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"النور","c":1,"t":"الماسي","h":"نرجس الحديقة - 10007206","m":"E117 - مركز ضيافة 12 - شركة هوليدي"}]},{"fn":"6783-D","dt":"04:45 PM","at":"07:05 PM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":25,"pil":21,"adm":1,"mis":0,"g":[{"n":"الجزري","c":12,"t":"الرافدين","h":"مرجانة الحجاز - 10012908","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"العرفان","c":10,"t":"الرافدين","h":"مرجانة الحجاز - 10012908","m":"E117 - مركز ضيافة 12 - شركة هوليدي"}]},{"fn":"6765","dt":"04:45 PM","at":"07:05 PM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":175,"pil":166,"adm":9,"mis":0,"g":[{"n":"الغمامة","c":14,"t":"ام القرى","h":"مرجانة الحجاز - 10012908","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"الوسيلة","c":47,"t":"ام القرى","h":"مرجانة الحجاز - 10012908","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"حامل المسك","c":48,"t":"ام القرى","h":"مرجانة الحجاز - 10012908","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"هاجر","c":66,"t":"ام القرى","h":"مرجانة الحجاز - 10012908","m":"E117 - مركز ضيافة 12 - شركة هوليدي"}]},{"fn":"6783-H","dt":"04:45 PM","at":"07:05 PM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":152,"pil":145,"adm":5,"mis":0,"g":[{"n":"افنان","c":63,"t":"قباء","h":"سنود الريان - 10001983","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"افاق","c":54,"t":"قباء","h":"سنود الريان - 10001983","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"الحسن","c":31,"t":"قباء","h":"سنود الريان - 10001983","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"","c":1,"t":"قباء","h":"سنود الريان - 10001983","m":""},{"n":"اقرا","c":1,"t":"قباء","h":"سنود الريان - 10001983","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"}]},{"fn":"6809","dt":"04:45 PM","at":"07:30 PM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":175,"pil":168,"adm":7,"mis":0,"g":[{"n":"","c":1,"t":"الماسي","h":"نرجس الحديقة - 10007206","m":""},{"n":"معالم","c":48,"t":"الماسي","h":"نرجس الحديقة - 10007206","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"مواسم","c":85,"t":"الماسي","h":"نرجس الحديقة - 10007206","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"النور","c":41,"t":"الماسي","h":"نرجس الحديقة - 10007206","m":"E117 - مركز ضيافة 12 - شركة هوليدي"}]}],"2026-05-19":[{"fn":"RB1821","dt":"06:20 AM","at":"07:50 AM","da":"مطار دمشق الدولي","aa":"مطار المدينة المنورة","seats":127,"pil":121,"adm":6,"mis":0,"g":[{"n":"الشافعي","c":67,"t":"الرضوان","h":"أنجم - 10001487","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"المقاصد","c":60,"t":"الرضوان","h":"أنجم - 10001487","m":"37 - مركز ضيافة 11 - شركة هوليدي"}]},{"fn":"6763","dt":"07:20 AM","at":"09:40 AM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":180,"pil":170,"adm":5,"mis":0,"g":[{"n":"افاق","c":35,"t":"قباء","h":"سنود الريان - 10001983","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"وفد الرحمن","c":138,"t":"قباء","h":"سنود الريان - 10001983","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"افاق","c":1,"t":"قباء","h":"","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"وفد الرحمن","c":1,"t":"قباء","h":"","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"}]},{"fn":"6789","dt":"08:00 AM","at":"10:20 AM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":175,"pil":167,"adm":7,"mis":0,"g":[{"n":"العنزي","c":47,"t":"ام القرى","h":"مرجانة الحجاز - 10012908","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"","c":1,"t":"ام القرى","h":"مرجانة الحجاز - 10012908","m":""},{"n":"المودة","c":46,"t":"ام القرى","h":"مرجانة الحجاز - 10012908","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"العابد","c":80,"t":"ام القرى","h":"مرجانة الحجاز - 10012908","m":"E117 - مركز ضيافة 12 - شركة هوليدي"}]},{"fn":"6825","dt":"08:00 AM","at":"10:45 AM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":175,"pil":153,"adm":20,"mis":1,"g":[{"n":"نزهة المشتاق","c":25,"t":"الرحاب الطاهرة","h":"ميزاب الخير - 10010182","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"منار السبيل","c":2,"t":"الرحاب الطاهرة","h":"ميزاب الخير - 10010182","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"أصحاب الهمم","c":145,"t":"الرحاب الطاهرة","h":"ميزاب الخير - 10010182","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"","c":1,"t":"الرحاب الطاهرة","h":"ميزاب الخير - 10010182","m":""}]},{"fn":"6863","dt":"08:00 AM","at":"10:45 AM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":175,"pil":166,"adm":9,"mis":0,"g":[{"n":"العناية","c":62,"t":"الماسي","h":"نرجس الحديقة - 10007206","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"التحرير","c":47,"t":"الماسي","h":"نرجس الحديقة - 10007206","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"الشقروق","c":45,"t":"الماسي","h":"نرجس الحديقة - 10007206","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"مواسم","c":2,"t":"الماسي","h":"نرجس الحديقة - 10007206","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"ويس و ملا","c":14,"t":"الماسي","h":"نرجس الحديقة - 10007206","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"","c":1,"t":"الماسي","h":"نرجس الحديقة - 10007206","m":""},{"n":"نماء","c":4,"t":"الماسي","h":"نرجس الحديقة - 10007206","m":"E117 - مركز ضيافة 12 - شركة هوليدي"}]},{"fn":"6885","dt":"08:10 AM","at":"10:55 AM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":175,"pil":157,"adm":11,"mis":0,"g":[{"n":"الريحان","c":44,"t":"الرحاب الطاهرة","h":"ميزاب الخير - 10010182","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"نزهة المشتاق","c":65,"t":"الرحاب الطاهرة","h":"ميزاب الخير - 10010182","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"الحبيب","c":45,"t":"الرحاب الطاهرة","h":"ميزاب الخير - 10010182","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"","c":3,"t":"الرحاب الطاهرة","h":"ميزاب الخير - 10010182","m":""},{"n":"المنارة","c":11,"t":"الرحاب الطاهرة","h":"ميزاب الخير - 10010182","m":"E117 - مركز ضيافة 12 - شركة هوليدي"}]},{"fn":"6853","dt":"08:30 AM","at":"11:15 AM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":175,"pil":119,"adm":6,"mis":0,"g":[{"n":"ابن القيم","c":35,"t":"الاجابة","h":"عفراء - 10000993","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"اليحيى","c":46,"t":"الاجابة","h":"عفراء - 10000993","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"","c":1,"t":"الاجابة","h":"عفراء - 10000993","m":""},{"n":"الخالدي","c":43,"t":"الاجابة","h":"عفراء - 10000993","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"}]},{"fn":"6817","dt":"04:10 PM","at":"06:55 PM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":175,"pil":108,"adm":6,"mis":0,"g":[{"n":"القاصدين","c":9,"t":"الاجابة","h":"عفراء - 10000993","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"اليحيى","c":41,"t":"الاجابة","h":"عفراء - 10000993","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"","c":1,"t":"الاجابة","h":"عفراء - 10000993","m":""},{"n":"غسق","c":18,"t":"الاجابة","h":"عفراء - 10000993","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"قبس","c":45,"t":"الاجابة","h":"عفراء - 10000993","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"}]},{"fn":"RB1823","dt":"05:30 PM","at":"07:00 PM","da":"مطار دمشق الدولي","aa":"مطار المدينة المنورة","seats":126,"pil":97,"adm":8,"mis":0,"g":[{"n":"على خطى الرسول","c":36,"t":"الرضوان","h":"أنجم - 10001487","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"","c":3,"t":"الرضوان","h":"أنجم - 10001487","m":""},{"n":"الاندلس","c":3,"t":"الرضوان","h":"أنجم - 10001487","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"الجمان","c":1,"t":"الرضوان","h":"","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"العاديات","c":4,"t":"الرضوان","h":"أنجم - 10001487","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"المقاصد","c":2,"t":"الرضوان","h":"أنجم - 10001487","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"روضه المختار","c":11,"t":"الرضوان","h":"أنجم - 10001487","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"التوكل","c":45,"t":"الرضوان","h":"أنجم - 10001487","m":"37 - مركز ضيافة 11 - شركة هوليدي"}]},{"fn":"6735","dt":"05:00 PM","at":"07:20 PM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":175,"pil":167,"adm":8,"mis":0,"g":[{"n":"الدر المنثور","c":47,"t":"ام القرى","h":"مرجانة الحجاز - 10012908","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"الحطيم","c":47,"t":"ام القرى","h":"مرجانة الحجاز - 10012908","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"العابد","c":35,"t":"ام القرى","h":"مرجانة الحجاز - 10012908","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"بلال","c":46,"t":"ام القرى","h":"مرجانة الحجاز - 10012908","m":"E117 - مركز ضيافة 12 - شركة هوليدي"}]},{"fn":"5829","dt":"05:10 PM","at":"07:30 PM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":175,"pil":167,"adm":7,"mis":0,"g":[{"n":"الرفادة","c":48,"t":"الرافدين","h":"مرجانة الحجاز - 10012908","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"الأصفياء","c":40,"t":"ام القرى","h":"مرجانة الحجاز - 10012908","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"العرفان","c":45,"t":"الرافدين","h":"مرجانة الحجاز - 10012908","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"الاوابين","c":41,"t":"ام القرى","h":"مرجانة الحجاز - 10012908","m":"E117 - مركز ضيافة 12 - شركة هوليدي"}]},{"fn":"6707","dt":"05:15 PM","at":"07:30 PM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":175,"pil":167,"adm":8,"mis":0,"g":[{"n":"الشمساوي","c":40,"t":"الرافدين","h":"مرجانة الحجاز - 10012908","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"الفرات","c":47,"t":"الرافدين","h":"مرجانة الحجاز - 10012908","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"الجزيرة","c":43,"t":"الرافدين","h":"مرجانة الحجاز - 10012908","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"النورسي","c":45,"t":"الرافدين","h":"مرجانة الحجاز - 10012908","m":"E117 - مركز ضيافة 12 - شركة هوليدي"}]},{"fn":"6737","dt":"05:10 PM","at":"07:30 PM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":175,"pil":166,"adm":9,"mis":0,"g":[{"n":"السداد","c":37,"t":"ام القرى","h":"مرجانة الحجاز - 10012908","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"الوفاق","c":45,"t":"ام القرى","h":"مرجانة الحجاز - 10012908","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"الصقور","c":47,"t":"ام القرى","h":"مرجانة الحجاز - 10012908","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"","c":1,"t":"ام القرى","h":"مرجانة الحجاز - 10012908","m":""},{"n":"عشاق الحبيب","c":45,"t":"ام القرى","h":"مرجانة الحجاز - 10012908","m":"E117 - مركز ضيافة 12 - شركة هوليدي"}]},{"fn":"6873","dt":"05:00 PM","at":"07:45 PM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":175,"pil":166,"adm":6,"mis":1,"g":[{"n":"الفجر","c":171,"t":"الاجابة","h":"عفراء - 10000993","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"الفجر","c":1,"t":"الاجابة","h":"","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"}]},{"fn":"6811","dt":"05:15 PM","at":"08:00 PM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":175,"pil":161,"adm":9,"mis":0,"g":[{"n":"عون الحاج","c":4,"t":"الذهبي","h":"فجر النسك - 10011289","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"غسق","c":26,"t":"الاجابة","h":"عفراء - 10000993","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"رواء مكة","c":106,"t":"شذا مكة","h":"الرسالة الماسي - 10007923","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"","c":1,"t":"شذا مكة","h":"الرسالة الماسي - 10007923","m":""},{"n":"نداء","c":33,"t":"شذا مكة","h":"الرسالة الماسي - 10007923","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"}]},{"fn":"TK5270","dt":"07:10 PM","at":"11:00 PM","da":"مطار غازي عنتاب","aa":"مطار جدة","seats":190,"pil":173,"adm":10,"mis":1,"g":[{"n":"شفاء","c":32,"t":"المشاعر","h":"إبراهيم علي العقل (هياء) - 10011798","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"},{"n":"","c":2,"t":"المشاعر","h":"","m":""},{"n":"عمر بن الخطاب","c":109,"t":"المشاعر","h":"فجر النسك - 10011289","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"التوبة","c":40,"t":"المشاعر","h":"الرسالة الماسي - 10007923","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"}]}],"2026-05-20":[{"fn":"6887","dt":"07:45 AM","at":"10:05 AM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":175,"pil":167,"adm":8,"mis":0,"g":[{"n":"الجزري","c":32,"t":"الرافدين","h":"مرجانة الحجاز - 10012908","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"الجودي","c":47,"t":"الرافدين","h":"مرجانة الحجاز - 10012908","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"رتاج الكعبة","c":47,"t":"الرافدين","h":"مرجانة الحجاز - 10012908","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"","c":1,"t":"الرافدين","h":"مرجانة الحجاز - 10012908","m":""},{"n":"دجلة","c":48,"t":"الرافدين","h":"مرجانة الحجاز - 10012908","m":"E117 - مركز ضيافة 12 - شركة هوليدي"}]},{"fn":"6813","dt":"08:00 AM","at":"10:45 AM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":175,"pil":102,"adm":2,"mis":0,"g":[{"n":"القرنفل","c":104,"t":"الرحاب الطاهرة","h":"ميزاب الخير - 10010182","m":"E117 - مركز ضيافة 12 - شركة هوليدي"}]},{"fn":"6819","dt":"08:00 AM","at":"10:45 AM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":175,"pil":159,"adm":7,"mis":0,"g":[{"n":"الكوثر","c":2,"t":"القصواء","h":"","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"الهدايه","c":93,"t":"القصواء","h":"عفراء - 10000993","m":"37 - مركز ضيافة 11 - شركة هوليدي"},{"n":"","c":2,"t":"القصواء","h":"عفراء - 10000993","m":""},{"n":"الكوثر","c":69,"t":"القصواء","h":"عفراء - 10000993","m":"37 - مركز ضيافة 11 - شركة هوليدي"}]},{"fn":"6875","dt":"08:00 AM","at":"10:45 AM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":175,"pil":166,"adm":8,"mis":0,"g":[{"n":"منازل الرحمه","c":44,"t":"الرحاب الطاهرة","h":"ميزاب الخير - 10010182","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"الحرمين","c":44,"t":"الرحاب الطاهرة","h":"ميزاب الخير - 10010182","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"منار السبيل","c":86,"t":"الرحاب الطاهرة","h":"ميزاب الخير - 10010182","m":"E117 - مركز ضيافة 12 - شركة هوليدي"}]},{"fn":"5721","dt":"09:00 AM","at":"11:20 AM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":175,"pil":157,"adm":9,"mis":0,"g":[{"n":"أهل الحديث","c":24,"t":"الضياء","h":"بركة اليقين - 10010172","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"},{"n":"","c":1,"t":"الرافدين","h":"مرجانة الحجاز - 10012908","m":""},{"n":"السفير","c":48,"t":"الرافدين","h":"مرجانة الحجاز - 10012908","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"الخابور","c":47,"t":"الرافدين","h":"مرجانة الحجاز - 10012908","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"الشرفاء","c":46,"t":"الرافدين","h":"مرجانة الحجاز - 10012908","m":"E117 - مركز ضيافة 12 - شركة هوليدي"}]},{"fn":"6827 حلب","dt":"08:45 AM","at":"11:30 AM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":175,"pil":166,"adm":9,"mis":0,"g":[{"n":"","c":2,"t":"شذا مكة","h":"الرسالة الماسي - 10007923","m":""},{"n":"الأمل","c":75,"t":"شذا مكة","h":"الرسالة الماسي - 10007923","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"زيد الخير","c":1,"t":"الضياء","h":"بركة اليقين - 10010172","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"},{"n":"رواء مكة","c":2,"t":"شذا مكة","h":"الرسالة الماسي - 10007923","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"سدرة المنتهى","c":47,"t":"شذا مكة","h":"الرسالة الماسي - 10007923","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"القرنفل","c":48,"t":"الرحاب الطاهرة","h":"ميزاب الخير - 10010182","m":"E117 - مركز ضيافة 12 - شركة هوليدي"}]},{"fn":"6785","dt":"04:45 PM","at":"07:05 PM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":175,"pil":167,"adm":8,"mis":0,"g":[{"n":"اقرا","c":16,"t":"قباء","h":"سنود الريان - 10001983","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"الحسن","c":97,"t":"قباء","h":"سنود الريان - 10001983","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"","c":1,"t":"قباء","h":"سنود الريان - 10001983","m":""},{"n":"الاسراء","c":61,"t":"قباء","h":"سنود الريان - 10001983","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"}]},{"fn":"6779","dt":"05:00 PM","at":"07:20 PM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":175,"pil":168,"adm":7,"mis":0,"g":[{"n":"","c":1,"t":"قباء","h":"سنود الريان - 10001983","m":""},{"n":"اقرا","c":73,"t":"قباء","h":"سنود الريان - 10001983","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"الاسراء","c":10,"t":"قباء","h":"سنود الريان - 10001983","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"الامام الشاطبي","c":91,"t":"قباء","h":"سنود الريان - 10001983","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"}]},{"fn":"6791","dt":"05:00 PM","at":"07:20 PM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":175,"pil":168,"adm":6,"mis":0,"g":[{"n":"الحسن","c":2,"t":"قباء","h":"سنود الريان - 10001983","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"","c":1,"t":"قباء","h":"سنود الريان - 10001983","m":""},{"n":"اقرا","c":140,"t":"قباء","h":"سنود الريان - 10001983","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"الاسراء","c":1,"t":"قباء","h":"سنود الريان - 10001983","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"افنان","c":30,"t":"قباء","h":"سنود الريان - 10001983","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"}]},{"fn":"6793","dt":"05:30 PM","at":"07:50 PM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":175,"pil":159,"adm":7,"mis":3,"g":[{"n":"همة","c":25,"t":"وفد الله","h":"فيوليت 3 - 10000966","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"الغيث","c":93,"t":"وفد الله","h":"فيوليت 3 - 10000966","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"عمار البيت","c":47,"t":"وفد الله","h":"فيوليت 3 - 10000966","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"","c":1,"t":"وفد الله","h":"فيوليت 3 - 10000966","m":""}]},{"fn":"6739","dt":"05:45 PM","at":"08:05 PM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":175,"pil":112,"adm":5,"mis":0,"g":[{"n":"الميداني و المعالي","c":26,"t":"وفد الله","h":"فيوليت 3 - 10000966","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"الزعتري","c":47,"t":"وفد الله","h":"فيوليت 3 - 10000966","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"اهل الشام","c":44,"t":"وفد الله","h":"فيوليت 3 - 10000966","m":"E117 - مركز ضيافة 12 - شركة هوليدي"}]},{"fn":"6855 حلب","dt":"05:30 PM","at":"08:15 PM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":175,"pil":167,"adm":7,"mis":0,"g":[{"n":"الشهباء","c":1,"t":"الاجابة","h":"عفراء - 10000993","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"الحازمي","c":115,"t":"شذا مكة","h":"الرسالة الماسي - 10007923","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"الميقات","c":44,"t":"شذا مكة","h":"الرسالة الماسي - 10007923","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"","c":1,"t":"شذا مكة","h":"الرسالة الماسي - 10007923","m":""},{"n":"الجود","c":13,"t":"شذا مكة","h":"الرسالة الماسي - 10007923","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"}]}],"2026-05-21":[{"fn":"6821-Z","dt":"07:45 AM","at":"10:05 AM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":113,"pil":0,"adm":0,"mis":0,"g":[{"n":"","c":0,"t":"","h":"","m":""}]},{"fn":"6821 - AL","dt":"07:45 AM","at":"10:05 AM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":18,"pil":2,"adm":0,"mis":0,"g":[{"n":"الشهباء","c":2,"t":"الاجابة","h":"عفراء - 10000993","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"}]},{"fn":"6821-D","dt":"07:45 AM","at":"10:05 AM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":46,"pil":44,"adm":2,"mis":0,"g":[{"n":"الصادق الامين","c":46,"t":"الكعبة المشرفة","h":"فيوليت 3 - 10000966","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"}]},{"fn":"6877","dt":"08:00 AM","at":"10:20 AM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":175,"pil":168,"adm":6,"mis":0,"g":[{"n":"العرفان","c":80,"t":"الرافدين","h":"مرجانة الحجاز - 10012908","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"النجم","c":47,"t":"الرافدين","h":"مرجانة الحجاز - 10012908","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"المشكاة","c":47,"t":"الرافدين","h":"مرجانة الحجاز - 10012908","m":"E117 - مركز ضيافة 12 - شركة هوليدي"}]},{"fn":"5825","dt":"08:00 AM","at":"10:20 AM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":175,"pil":167,"adm":7,"mis":0,"g":[{"n":"المجد","c":80,"t":"الذهبي","h":"فجر النسك - 10011289","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"الرفقة الصالحة","c":6,"t":"الذهبي","h":"فجر النسك - 10011289","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"","c":2,"t":"الذهبي","h":"فجر النسك - 10011289","m":""},{"n":"الموسى","c":86,"t":"الذهبي","h":"فجر النسك - 10011289","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"}]},{"fn":"6815","dt":"08:10 AM","at":"10:55 AM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":175,"pil":167,"adm":6,"mis":0,"g":[{"n":"","c":1,"t":"شذا مكة","h":"الرسالة الماسي - 10007923","m":""},{"n":"الجود","c":99,"t":"شذا مكة","h":"الرسالة الماسي - 10007923","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"البقيع","c":73,"t":"شذا مكة","h":"الرسالة الماسي - 10007923","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"}]},{"fn":"6829","dt":"08:45 AM","at":"11:30 AM","da":"مطار حلب الدولي","aa":"مطار جدة","seats":180,"pil":170,"adm":5,"mis":5,"g":[{"n":"الرفقة الصالحة","c":40,"t":"الذهبي","h":"فجر النسك - 10011289","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"عون الحاج","c":135,"t":"الذهبي","h":"فجر النسك - 10011289","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"}]},{"fn":"6749","dt":"04:00 PM","at":"06:20 PM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":175,"pil":157,"adm":9,"mis":1,"g":[{"n":"العسلي","c":48,"t":"الرجاء","h":"دفلى 2 - 10011067","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"الرسول الحبيب","c":33,"t":"الكعبة المشرفة","h":"فيوليت 3 - 10000966","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"الفيحاء","c":4,"t":"نسك","h":"منصور الثبيتي (اورينز) - 10011487","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"المقربون","c":1,"t":"نسك","h":"منصور الثبيتي (اورينز) - 10011487","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"ربيع الشام","c":78,"t":"نسك","h":"منصور الثبيتي (اورينز) - 10011487","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"","c":1,"t":"نسك","h":"منصور الثبيتي (اورينز) - 10011487","m":""}]},{"fn":"6747-H","dt":"04:30 PM","at":"06:50 PM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":138,"pil":133,"adm":5,"mis":0,"g":[{"n":"السعيد","c":91,"t":"الضياء","h":"بركة اليقين - 10010172","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"},{"n":"الاخلاص","c":47,"t":"الضياء","h":"بركة اليقين - 10010172","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"}]},{"fn":"6747-Z","dt":"04:30 PM","at":"06:50 PM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":36,"pil":36,"adm":0,"mis":0,"g":[{"n":"أهل الحديث","c":36,"t":"الضياء","h":"بركة اليقين - 10010172","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"}]},{"fn":"6723","dt":"05:10 PM","at":"07:30 PM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":175,"pil":149,"adm":6,"mis":4,"g":[{"n":"الرحماء","c":70,"t":"الذهبي","h":"فجر النسك - 10011289","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"همة","c":2,"t":"وفد الله","h":"فيوليت 3 - 10000966","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"درة الشام","c":4,"t":"الحمد","h":"افق الخيمة - 10012747","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"البركة","c":79,"t":"البراق","h":"بركة اليقين - 10010172","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"}]},{"fn":"6859","dt":"05:15 PM","at":"07:35 PM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":175,"pil":169,"adm":6,"mis":0,"g":[{"n":"","c":1,"t":"الاجابة","h":"عفراء - 10000993","m":""},{"n":"القاصدين","c":173,"t":"الاجابة","h":"عفراء - 10000993","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"اليحيى","c":1,"t":"الاجابة","h":"عفراء - 10000993","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"}]},{"fn":"6743","dt":"05:30 PM","at":"07:50 PM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":180,"pil":157,"adm":6,"mis":0,"g":[{"n":"المنارة","c":1,"t":"الرحاب الطاهرة","h":"ميزاب الخير - 10010182","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"منازل الرحمه","c":49,"t":"الرحاب الطاهرة","h":"ميزاب الخير - 10010182","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"الخالدي","c":11,"t":"الاجابة","h":"عفراء - 10000993","m":"C117 - مركز ضيافة 14 - شركة ابراج مكة"},{"n":"نزهة المشتاق","c":1,"t":"الرحاب الطاهرة","h":"ميزاب الخير - 10010182","m":"E117 - مركز ضيافة 12 - شركة هوليدي"},{"n":"البراء","c":11,"t":"الضياء","h":"بركة اليقين - 10010172","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"},{"n":"السراج","c":21,"t":"عباد الرحمن","h":"سنود المشاعر - 10012634","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"},{"n":"القاسم","c":24,"t":"الضياء","h":"بركة اليقين - 10010172","m":"43 - مركز ضيافة 15 - شركة ابراج مكة"},{"n":"سدرة المنتهى","c":12,"t":"شذا مكة","h":"الرسالة الماسي - 10007923","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"ابن القيم","c":14,"t":"الاجابة","h":"عفراء - 10000993","m":"E 117 - مركز ضيافة 10 - شركة هوليدي"},{"n":"فرزات","c":19,"t":"عباد الرحمن","h":"سنود المشاعر - 10012634","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"}]},{"fn":"6741","dt":"07:30 PM","at":"09:50 PM","da":"مطار دمشق الدولي","aa":"مطار جدة","seats":175,"pil":168,"adm":6,"mis":0,"g":[{"n":"","c":1,"t":"عباد الرحمن","h":"سنود المشاعر - 10012634","m":""},{"n":"فرزات","c":173,"t":"عباد الرحمن","h":"سنود المشاعر - 10012634","m":"C117 - مركز ضيافة 16 - شركة ابراج مكة"}]}]};
+
+const DAYS_AR = ['الأحد','الإثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
+function getDayName(ds) { return DAYS_AR[new Date(ds+'T00:00:00').getDay()]; }
+function formatDate(ds) { const p=ds.split('-'); return p[2]+'/'+p[1]; }
+
+const dates = Object.keys(DATA).sort();
+
+// ===== COMPUTE STATS =====
+let totalFlights=0, totalPil=0, totalAdm=0, totalSeats=0, totalMis=0;
+const perDay = {};
+const airportCount = {};
+const hourCount = {};
+const periodCount = { 'فجر (قبل 6)':0, 'صباحية (6-12)':0, 'ظهرية/عصرية (12-17)':0, 'مسائية (17+)':0 };
+const hotelCount = {};
+const taktolCount = {};
+const groupCount = {};
+
+dates.forEach(d => {
+  perDay[d] = { flights:0, pil:0, adm:0, seats:0 };
+  DATA[d].forEach(f => {
+    totalFlights++; totalPil+=f.pil; totalAdm+=f.adm; totalSeats+=f.seats; totalMis+=f.mis;
+    perDay[d].flights++; perDay[d].pil+=f.pil; perDay[d].adm+=f.adm; perDay[d].seats+=f.seats;
+
+    airportCount[f.da] = (airportCount[f.da]||0) + 1;
+
+    const h = parseInt(f.dt.split(':')[0]);
+    hourCount[h] = (hourCount[h]||0) + 1;
+    if(h<6) periodCount['فجر (قبل 6)']++;
+    else if(h<12) periodCount['صباحية (6-12)']++;
+    else if(h<17) periodCount['ظهرية/عصرية (12-17)']++;
+    else periodCount['مسائية (17+)']++;
+
+    f.g.forEach(g => {
+      if(g.h) hotelCount[g.h] = (hotelCount[g.h]||0) + g.c;
+      if(g.t) taktolCount[g.t] = (taktolCount[g.t]||0) + g.c;
+      if(g.n) groupCount[g.n] = (groupCount[g.n]||0) + 1;
+    });
+  });
+});
+
+const busiestDay = dates.reduce((a,b) => perDay[a].pil > perDay[b].pil ? a : b);
+const busiestFlightDay = dates.reduce((a,b) => perDay[a].flights > perDay[b].flights ? a : b);
+const peakHour = Object.entries(hourCount).sort((a,b)=>b[1]-a[1])[0];
+const avgOcc = ((totalPil+totalAdm)/totalSeats*100).toFixed(1);
+const avgPilPerFlight = Math.round(totalPil/totalFlights);
+
+// ===== RENDER DASHBOARD =====
+document.getElementById('bigStats').innerHTML = `
+  <div class="big-stat highlight"><div class="icon">&#128197;</div><div class="val">${dates.length}</div><div class="label">يوم تشغيل</div></div>
+  <div class="big-stat highlight"><div class="icon">&#9992;</div><div class="val">${totalFlights}</div><div class="label">رحلة طيران</div></div>
+
+`;
+
+document.getElementById('insights').innerHTML = `
+  <div class="insight">
+    <div class="title">أكثر يوم ازدحاماً بالحجاج</div>
+    <div class="value">${getDayName(busiestDay)} ${formatDate(busiestDay)}</div>
+    <div class="detail">${perDay[busiestDay].pil.toLocaleString('ar-EG')} حاج في ${perDay[busiestDay].flights} رحلة</div>
+  </div>
+  <div class="insight">
+    <div class="title">أكثر يوم بعدد الرحلات</div>
+    <div class="value">${getDayName(busiestFlightDay)} ${formatDate(busiestFlightDay)}</div>
+    <div class="detail">${perDay[busiestFlightDay].flights} رحلة تنقل ${perDay[busiestFlightDay].pil.toLocaleString('ar-EG')} حاج</div>
+  </div>
+  <div class="insight">
+    <div class="title">ساعة الذروة</div>
+    <div class="value">${peakHour[0]}:00</div>
+    <div class="detail">${peakHour[1]} رحلة تقلع في هذه الساعة</div>
+  </div>
+  <div class="insight">
+    <div class="title">معدل الحجاج لكل رحلة</div>
+    <div class="value">${avgPilPerFlight}</div>
+    <div class="detail">حاج لكل رحلة في المتوسط</div>
+  </div>
+  <div class="insight">
+    <div class="title">عدد التكتلات</div>
+    <div class="value">${Object.keys(taktolCount).length}</div>
+    <div class="detail">تكتل مشارك في الموسم</div>
+  </div>
+  <div class="insight">
+    <div class="title">عدد المجموعات</div>
+    <div class="value">${Object.keys(groupCount).length}</div>
+    <div class="detail">مجموعة حج مختلفة</div>
+  </div>
+`;
+
+// Top Hotels
+const sortedHotels = Object.entries(hotelCount).sort((a,b)=>b[1]-a[1]).slice(0,5);
+document.getElementById('topHotels').innerHTML = sortedHotels.map((h,i) => `
+  <li class="rank-item">
+    <span class="rank-num">${i+1}</span>
+    <span class="rank-name">${h[0]}</span>
+    <span class="rank-val">${h[1].toLocaleString('ar-EG')} حاج</span>
+  </li>
+`).join('');
+
+// Top Taktol
+const sortedTaktol = Object.entries(taktolCount).sort((a,b)=>b[1]-a[1]).slice(0,5);
+document.getElementById('topTaktol').innerHTML = sortedTaktol.map((t,i) => `
+  <li class="rank-item">
+    <span class="rank-num">${i+1}</span>
+    <span class="rank-name">${t[0]}</span>
+    <span class="rank-val">${t[1].toLocaleString('ar-EG')} حاج</span>
+  </li>
+`).join('');
+
+// ===== CHARTS =====
+const chartColors = {
+  green: '#0d5c2e',
+  greenLight: '#1a8b4c',
+  greenPale: 'rgba(13,92,46,0.15)',
+  blue: '#1e40af',
+  orange: '#ea580c',
+  gold: '#ca8a04',
+  teal: '#0d9488'
+};
+
+// Pilgrims per day chart
+new Chart(document.getElementById('chartPilgrimsPerDay'), {
+  type: 'bar',
+  data: {
+    labels: dates.map(d => getDayName(d)+' '+formatDate(d)),
+    datasets: [{
+      label: 'عدد الحجاج',
+      data: dates.map(d => perDay[d].pil),
+      backgroundColor: dates.map(d => d===busiestDay ? '#ea580c' : 'rgba(13,92,46,0.7)'),
+      borderColor: dates.map(d => d===busiestDay ? '#ea580c' : '#0d5c2e'),
+      borderWidth: 1,
+      borderRadius: 6,
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      y: { beginAtZero: true, ticks: { font: { size: 11 } } },
+      x: { ticks: { font: { size: 10 }, maxRotation: 45 } }
+    }
+  }
+});
+
+// Flights per day chart
+new Chart(document.getElementById('chartFlightsPerDay'), {
+  type: 'line',
+  data: {
+    labels: dates.map(d => getDayName(d)+' '+formatDate(d)),
+    datasets: [{
+      label: 'عدد الرحلات',
+      data: dates.map(d => perDay[d].flights),
+      borderColor: '#0d5c2e',
+      backgroundColor: 'rgba(13,92,46,0.1)',
+      fill: true,
+      tension: 0.3,
+      pointRadius: 5,
+      pointBackgroundColor: dates.map(d => d===busiestFlightDay ? '#ea580c' : '#0d5c2e'),
+      pointBorderColor: '#fff',
+      pointBorderWidth: 2,
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      y: { beginAtZero: true, ticks: { stepSize: 2, font: { size: 11 } } },
+      x: { ticks: { font: { size: 10 }, maxRotation: 45 } }
+    }
+  }
+});
+
+// Time distribution donut
+new Chart(document.getElementById('chartTimeDist'), {
+  type: 'doughnut',
+  data: {
+    labels: Object.keys(periodCount),
+    datasets: [{
+      data: Object.values(periodCount),
+      backgroundColor: ['#6366f1','#0d9488','#ca8a04','#ea580c'],
+      borderWidth: 2,
+      borderColor: '#fff'
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 12 } }
+    }
+  }
+});
+
+// Airport distribution
+const airportEntries = Object.entries(airportCount).sort((a,b)=>b[1]-a[1]);
+new Chart(document.getElementById('chartAirports'), {
+  type: 'doughnut',
+  data: {
+    labels: airportEntries.map(a=>a[0]),
+    datasets: [{
+      data: airportEntries.map(a=>a[1]),
+      backgroundColor: ['#0d5c2e','#1a8b4c','#0d9488','#6366f1','#ca8a04'],
+      borderWidth: 2,
+      borderColor: '#fff'
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { position: 'bottom', labels: { font: { size: 10 }, padding: 10 } }
+    }
+  }
+});
+
+// Hourly heatmap bar chart
+const hours = Array.from({length:24},(_,i)=>i);
+new Chart(document.getElementById('chartHourly'), {
+  type: 'bar',
+  data: {
+    labels: hours.map(h => h+':00'),
+    datasets: [{
+      label: 'عدد الرحلات',
+      data: hours.map(h => hourCount[h]||0),
+      backgroundColor: hours.map(h => {
+        const v = hourCount[h]||0;
+        if(v >= 20) return '#dc2626';
+        if(v >= 10) return '#ea580c';
+        if(v >= 5) return '#ca8a04';
+        if(v > 0) return '#0d9488';
+        return '#e2e8f0';
+      }),
+      borderRadius: 4,
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: ctx => {
+            const v = ctx.raw;
+            if(v>=20) return v+' رحلة - ضغط عالي جداً &#128308;';
+            if(v>=10) return v+' رحلة - ضغط عالي &#128992;';
+            if(v>=5) return v+' رحلة - متوسط &#128993;';
+            return v+' رحلة &#128994;';
+          }
+        }
+      }
+    },
+    scales: {
+      y: { beginAtZero: true, ticks: { stepSize: 5, font: { size: 11 } }, title: { display: true, text: 'عدد الرحلات', font: { size: 12 } } },
+      x: { ticks: { font: { size: 10 } }, title: { display: true, text: 'الساعة', font: { size: 12 } } }
+    }
+  }
+});
+
+// ===== FLIGHTS VIEW =====
+document.getElementById('statsBar').innerHTML = `
+  <div class="stat-box"><div class="num">${dates.length}</div><div class="lbl">يوم</div></div>
+  <div class="stat-box"><div class="num">${totalFlights}</div><div class="lbl">رحلة</div></div>
+  <div class="stat-box"><div class="num">${totalPil.toLocaleString('ar-EG')}</div><div class="lbl">حاج</div></div>
+  <div class="stat-box"><div class="num">${totalAdm.toLocaleString('ar-EG')}</div><div class="lbl">إداري</div></div>
+`;
+
+const tabsEl = document.getElementById('tabs');
+dates.forEach((d, i) => {
+  const btn = document.createElement('button');
+  btn.className = 'tab' + (i===0?' active':'');
+  btn.innerHTML = '<span class="badge">'+DATA[d].length+'</span> '+getDayName(d)+' '+formatDate(d);
+  btn.onclick = () => selectDay(d, btn);
+  tabsEl.appendChild(btn);
+});
+
+let currentDate = dates[0];
+
+function selectDay(ds, btn) {
+  currentDate = ds;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  btn.classList.add('active');
+  renderDay(ds);
+}
+
+function renderDay(ds) {
+  const flights = DATA[ds];
+  const dp = flights.reduce((s,f)=>s+f.pil,0);
+  const da = flights.reduce((s,f)=>s+f.adm,0);
+  const dse = flights.reduce((s,f)=>s+f.seats,0);
+
+  document.getElementById('daySummary').innerHTML = `
+    <span class="day-stat"><strong>${flights.length}</strong> رحلة</span>
+    <span class="day-stat">&bull;</span>
+    <span class="day-stat"><strong>${dp.toLocaleString('ar-EG')}</strong> حاج</span>
+    <span class="day-stat">&bull;</span>
+    <span class="day-stat"><strong>${da}</strong> إداري</span>
+    <span class="day-stat">&bull;</span>
+    <span class="day-stat"><strong>${dse.toLocaleString('ar-EG')}</strong> مقعد</span>
+  `;
+
+  document.getElementById('content').innerHTML = flights.map((f, idx) => {
+    const vg = f.g.filter(g=>g.n&&g.c>0);
+    const gh = vg.length>0 ? `
+      <button class="toggle-btn" onclick="toggleGroups(this,'grp-${ds}-${idx}')">
+        عرض المجموعات (${vg.length} مجموعة) <span class="chevron">&#9660;</span>
+      </button>
+      <div class="groups-container" id="grp-${ds}-${idx}">
+        <table class="groups-table">
+          <thead><tr><th>المجموعة</th><th>العدد</th><th>التكتل</th><th>الفندق</th><th>المطوف</th></tr></thead>
+          <tbody>${vg.map(g=>`<tr>
+            <td><span class="group-name">${g.n}</span></td>
+            <td><span class="group-count">${g.c}</span></td>
+            <td><span class="taktol-badge">${g.t}</span></td>
+            <td><span class="hotel-name">${g.h}</span></td>
+            <td><span class="mutawif-name">${g.m||'—'}</span></td>
+          </tr>`).join('')}</tbody>
+        </table>
+      </div>` : '';
+    return `
+    <div class="flight-card">
+      <div class="flight-header">
+        <div class="flight-num">${f.fn}</div>
+        <div class="flight-route">
+          <span class="airport">${f.da}</span>
+          <span class="arrow">&larr;</span>
+          <span class="airport">${f.aa}</span>
+        </div>
+        <div class="flight-times">
+          <div class="time-block"><div class="time-val">${f.dt}</div><div class="time-lbl">إقلاع</div></div>
+          <div class="time-block"><div class="time-val">${f.at}</div><div class="time-lbl">وصول</div></div>
+        </div>
+      </div>
+      <div class="flight-meta">
+        <span class="meta-chip">&#128186; المقاعد: <span class="mv">${f.seats}</span></span>
+        <span class="meta-chip">&#128101; الحجاج: <span class="mv">${f.pil}</span></span>
+        <span class="meta-chip">&#128188; الإداريين: <span class="mv">${f.adm}</span></span>
+        ${f.mis>0?'<span class="meta-chip">البعثات: <span class="mv">'+f.mis+'</span></span>':''}
+      </div>
+      <div class="groups-section">${gh}</div>
+    </div>`;
+  }).join('');
+}
+
+function toggleGroups(btn, id) {
+  btn.classList.toggle('open');
+  document.getElementById(id).classList.toggle('open');
+}
+
+function switchView(view, btn) {
+  document.querySelectorAll('.view-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('dashboardView').classList.toggle('visible', view==='dashboard');
+  document.getElementById('flightsView').classList.toggle('visible', view==='flights');
+  document.getElementById('firebaseView').classList.toggle('visible', view==='firebase');
+  if (view === 'firebase') window.loadFirebaseData();
+}
+
+function toggleFbCard(i) {
+  document.getElementById(`fbCard_${i}`).classList.toggle('open');
+}
+
+renderDay(dates[0]);
+</script>
 </body>
 </html>

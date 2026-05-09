@@ -834,19 +834,10 @@ class _AirportMainPageState extends State<AirportMainPage> {
 
     // Step 5: Share
     if (allData.isNotEmpty) {
-      try {
-        await Share.share(
-          allData.toString(),
-          subject: 'تقرير الرحلة $travelName',
-        );
-      } catch (e) {
-        // Fallback: copy to clipboard if share plugin fails (e.g. Simulator)
-        await Clipboard.setData(ClipboardData(text: allData.toString()));
-        showSnackBar(
-          Get.context!,
-          'تم نسخ التقرير إلى الحافظة ✅',
-        );
-      }
+      await Share.share(
+        allData.toString(),
+        subject: 'تقرير الرحلة $travelName',
+      );
     } else {
       showSnackBar(
         Get.context!,

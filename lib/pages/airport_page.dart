@@ -169,15 +169,10 @@ class _AirportPageState extends State<AirportPage> {
     allData.writeln('عدد الحجاج الاجمالي: $grandTotal');
     allData.writeln('');
 
-    try {
-      await Share.share(
-        allData.toString(),
-        subject: 'تقرير الرحلة ${widget.tripName}',
-      );
-    } catch (e) {
-      await Clipboard.setData(ClipboardData(text: allData.toString()));
-      showSnackBar(context, 'تم نسخ التقرير إلى الحافظة ✅');
-    }
+    await Share.share(
+      allData.toString(),
+      subject: 'تقرير الرحلة ${widget.tripName}',
+    );
   }
 
   @override
@@ -341,12 +336,23 @@ class _AirportPageState extends State<AirportPage> {
             ),
           ); // LodingView
         } else {
+          // Sort locally: unsent first, then by time (already sorted by query)
+          final docs = snapshot.data!.docs.toList();
+          docs.sort((a, b) {
+            final aData = a.data() as Map<String, dynamic>?;
+            final bData = b.data() as Map<String, dynamic>?;
+            final aSent = aData?['isSent'] == true ? 1 : 0;
+            final bSent = bData?['isSent'] == true ? 1 : 0;
+            if (aSent != bSent) return aSent.compareTo(bSent);
+            return 0; // keep original time order within same group
+          });
+
           return ListView.builder(
-            itemCount: snapshot.data!.docs.length,
+            itemCount: docs.length,
             itemBuilder: (context, index) {
               return GestureDetector(
                 onTap: _isOwner ? () {
-                  final doc = snapshot.data!.docs[index];
+                  final doc = docs[index];
                   if (tripType == deanaType) {
                     Get.to(
                       () => DeanaFormPage(
@@ -395,73 +401,117 @@ class _AirportPageState extends State<AirportPage> {
                   }
                 } : null,
                 onLongPress: _isOwner ? () {
-                  showDialog(
+                  final docId = docs[index].id;
+                  final docData = docs[index].data() as Map<String, dynamic>?;
+                  final bool currentIsSent = docData?['isSent'] == true;
+
+                  showModalBottomSheet(
                     context: context,
-                    builder: (_) => AlertDialog(
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20)),
-                      title: const Text(
-                        'حذف الرحلة',
-                        textDirection: ui.TextDirection.rtl,
-                        style: TextStyle(
-                          fontFamily: 'Cairo',
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
-                          color: Color(0xffD64545),
-                        ),
+                    backgroundColor: Colors.transparent,
+                    builder: (_) => Container(
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
                       ),
-                      content: const Text(
-                        'هل تريد بالفعل حذف الرحلة؟',
-                        textDirection: ui.TextDirection.rtl,
-                        style: TextStyle(fontFamily: 'Cairo', fontSize: 14),
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () {
-                            Navigator.pop(context);
-                          },
-                          child: Text(
-                            'لا',
-                            style: TextStyle(
-                              color: Colors.grey[700],
-                              fontFamily: 'Cairo',
-                              fontWeight: FontWeight.w600,
+                      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 40, height: 4,
+                            decoration: BoxDecoration(
+                              color: Colors.grey[300],
+                              borderRadius: BorderRadius.circular(2),
                             ),
                           ),
-                        ),
-                        ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xffD64545),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12)),
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 20, vertical: 8),
-                          ),
-                          onPressed: () {
-                            FirebaseFirestore.instance
-                                .collection(kMessagesCollections)
-                                .doc(snapshot.data!.docs[index].id)
-                                .delete();
-                            showSnackBar(
-                              context,
-                              'تم حذف الرحلة',
-                            );
-                            Navigator.pop(context);
-                          },
-                          child: const Text(
-                            'حذف',
-                            style: TextStyle(
-                              fontFamily: 'Cairo',
-                              fontWeight: FontWeight.bold,
+                          const SizedBox(height: 16),
+                          ListTile(
+                            leading: Icon(
+                              currentIsSent ? Icons.undo_rounded : Icons.check_circle_outline_rounded,
+                              color: currentIsSent ? Colors.orange : const Color(0xff2e7d32),
+                              size: 28,
                             ),
+                            title: Text(
+                              currentIsSent ? 'إلغاء الإرسال' : 'تم الإرسال',
+                              style: const TextStyle(
+                                fontFamily: 'Cairo',
+                                fontWeight: FontWeight.w600,
+                                fontSize: 16,
+                              ),
+                            ),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            onTap: () {
+                              FirebaseFirestore.instance
+                                  .collection(kMessagesCollections)
+                                  .doc(docId)
+                                  .update({'isSent': !currentIsSent});
+                              Navigator.pop(context);
+                              showSnackBar(
+                                context,
+                                currentIsSent ? 'تم إلغاء حالة الإرسال' : 'تم تحديده كمرسل ✅',
+                              );
+                            },
                           ),
-                        ),
-                      ],
+                          const Divider(height: 1),
+                          ListTile(
+                            leading: const Icon(
+                              Icons.delete_outline_rounded,
+                              color: Color(0xffD64545),
+                              size: 28,
+                            ),
+                            title: const Text(
+                              'حذف',
+                              style: TextStyle(
+                                fontFamily: 'Cairo',
+                                fontWeight: FontWeight.w600,
+                                fontSize: 16,
+                                color: Color(0xffD64545),
+                              ),
+                            ),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            onTap: () {
+                              Navigator.pop(context);
+                              showDialog(
+                                context: context,
+                                builder: (_) => AlertDialog(
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                  title: const Text(
+                                    'حذف الرحلة',
+                                    textDirection: ui.TextDirection.rtl,
+                                    style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xffD64545)),
+                                  ),
+                                  content: const Text('هل تريد بالفعل حذف الرحلة؟', textDirection: ui.TextDirection.rtl, style: TextStyle(fontFamily: 'Cairo', fontSize: 14)),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(context),
+                                      child: Text('لا', style: TextStyle(color: Colors.grey[700], fontFamily: 'Cairo', fontWeight: FontWeight.w600)),
+                                    ),
+                                    ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xffD64545),
+                                        foregroundColor: Colors.white,
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                                      ),
+                                      onPressed: () {
+                                        FirebaseFirestore.instance.collection(kMessagesCollections).doc(docId).delete();
+                                        showSnackBar(context, 'تم حذف الرحلة');
+                                        Navigator.pop(context);
+                                      },
+                                      child: const Text('حذف', style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.bold)),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                          const SizedBox(height: 8),
+                        ],
+                      ),
                     ),
                   );
                 } : null,
-                child: cardDetails(snapshot.data!.docs[index], tripType),
+                child: cardDetails(docs[index], tripType),
               );
             },
           );
@@ -482,14 +532,17 @@ class _AirportPageState extends State<AirportPage> {
   }
 
   Widget _buildBusCard(DocumentSnapshot doc, String time) {
+    final data = doc.data() as Map<String, dynamic>?;
+    final bool isSent = data?['isSent'] == true;
+
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 14),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
-        color: Colors.white,
+        color: isSent ? const Color(0xffE8F5E9) : Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withOpacity(isSent ? 0.05 : 0.1),
             blurRadius: 8,
             offset: const Offset(0, 3),
           ),
@@ -500,7 +553,7 @@ class _AirportPageState extends State<AirportPage> {
         child: Column(
           children: [
             Container(
-              color: kSecondaryColor,
+              color: isSent ? const Color(0xff388E3C) : kSecondaryColor,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -521,13 +574,34 @@ class _AirportPageState extends State<AirportPage> {
                       ),
                     ],
                   ),
-                  Text(
-                    doc['groupName'] ?? '',
-                    style: const TextStyle(
-                      fontFamily: 'Cairo',
-                      color: Colors.white70,
-                      fontSize: 12,
-                    ),
+                  Row(
+                    children: [
+                      if (isSent)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.25),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.check_circle, color: Colors.white, size: 12),
+                              SizedBox(width: 4),
+                              Text('تم الإرسال', style: TextStyle(fontFamily: 'Cairo', color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                        ),
+                      if (isSent) const SizedBox(width: 8),
+                      Text(
+                        doc['groupName'] ?? '',
+                        style: const TextStyle(
+                          fontFamily: 'Cairo',
+                          color: Colors.white70,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -580,14 +654,17 @@ class _AirportPageState extends State<AirportPage> {
   }
 
   Widget _buildDeanaCard(DocumentSnapshot doc, String time) {
+    final data = doc.data() as Map<String, dynamic>?;
+    final bool isSent = data?['isSent'] == true;
+
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 14),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
-        color: Colors.white,
+        color: isSent ? const Color(0xffE8F5E9) : Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withOpacity(isSent ? 0.05 : 0.1),
             blurRadius: 8,
             offset: const Offset(0, 3),
           ),
@@ -598,7 +675,7 @@ class _AirportPageState extends State<AirportPage> {
         child: Column(
           children: [
             Container(
-              color: const Color(0xff4a7c59),
+              color: isSent ? const Color(0xff2E7D32) : const Color(0xff4a7c59),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -619,13 +696,34 @@ class _AirportPageState extends State<AirportPage> {
                       ),
                     ],
                   ),
-                  Text(
-                    doc['groupName'] ?? '',
-                    style: const TextStyle(
-                      fontFamily: 'Cairo',
-                      color: Colors.white70,
-                      fontSize: 12,
-                    ),
+                  Row(
+                    children: [
+                      if (isSent)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.25),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.check_circle, color: Colors.white, size: 12),
+                              SizedBox(width: 4),
+                              Text('تم الإرسال', style: TextStyle(fontFamily: 'Cairo', color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                        ),
+                      if (isSent) const SizedBox(width: 8),
+                      Text(
+                        doc['groupName'] ?? '',
+                        style: const TextStyle(
+                          fontFamily: 'Cairo',
+                          color: Colors.white70,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -742,12 +840,7 @@ class _AirportPageState extends State<AirportPage> {
     if ((data['notes'] ?? '').toString().trim().isNotEmpty)
       text.writeln('ملاحظات: ${data['notes']}');
 
-    try {
-      await Share.share(text.toString());
-    } catch (e) {
-      await Clipboard.setData(ClipboardData(text: text.toString()));
-      showSnackBar(context, 'تم نسخ البيانات إلى الحافظة ✅');
-    }
+    await Share.share(text.toString());
   }
 
   Widget _infoTile(IconData icon, String label, String value) {
