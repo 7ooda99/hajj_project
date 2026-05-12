@@ -642,7 +642,7 @@ class _AirportPageState extends State<AirportPage> {
                   const Spacer(),
                   GestureDetector(
                     onTap: () => _shareItem(doc, busType),
-                    child: Icon(Icons.share_rounded, size: 16, color: kSecondaryColor),
+                    child: Icon(Icons.share_rounded, size: 28, color: kSecondaryColor),
                   ),
                 ],
               ),
@@ -782,7 +782,7 @@ class _AirportPageState extends State<AirportPage> {
                   const Spacer(),
                   GestureDetector(
                     onTap: () => _shareItem(doc, deanaType),
-                    child: const Icon(Icons.share_rounded, size: 16, color: Color(0xff4a7c59)),
+                    child: const Icon(Icons.share_rounded, size: 28, color: Color(0xff4a7c59)),
                   ),
                 ],
               ),
